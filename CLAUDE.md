@@ -6,10 +6,17 @@ Session handoff. Read this fully at the start of any new Claude session in this 
 
 ## Goal
 
-Production Windows flashing tool for PY32F0xx-based flashlight firmware.
-Drives a Black Magic Probe via `arm-none-eabi-gdb`. Designed to mass-flash
-~500 devices per batch from non-developer factory operators, with signed
-firmware fetched from private GitHub repos and every attempt logged to SQLite.
+Production Windows flashing tool for any ARM Cortex-M target supported by
+Black Magic Probe (PY32, STM32, NXP, GD32, etc.). Drives the probe via
+`arm-none-eabi-gdb`. Designed to mass-flash ~500 devices per batch from
+non-developer factory operators. Firmware is fetched from private GitHub
+repos; each release carries the target stack metadata (BMP target match
+string + flash size + display part number) so the app can verify the right
+firmware is paired with the right hardware. Every attempt is logged to SQLite.
+
+**UI language: Ukrainian only** (operator-facing strings in WPF and CLI).
+Log payloads, error codes (`E_*`), and developer-only diagnostics stay
+ASCII / English.
 
 The full architecture proposal lives in the firmware repo's prior session
 transcript. This file is the *condensed* working copy of those decisions.
@@ -34,17 +41,22 @@ transcript. This file is the *condensed* working copy of those decisions.
 ### Not yet done (Sprint 1, in order — one commit per chunk)
 
 1. **`GdbProcess` wrapper** in `FlashlightApp.Core` — spawns
-   `arm-none-eabi-gdb`, parses stdout line-by-line into events.
+   `arm-none-eabi-gdb`, parses stdout line-by-line into events. Generic:
+   takes COM port + power + frequency + connect-reset; nothing PY32-specific.
 2. **`FlashStateMachine`** — 7 states (IDLE → PREPARING → PROBE_CHECK →
    ATTACH → LOADING → VERIFYING → FINALIZING → PASS/FAIL → LOGGED → IDLE),
-   emits typed outcomes with `error_code`.
+   emits typed outcomes with `error_code`. Accepts an expected
+   `bmp_target_match` string; verifies `swdp_scan` output contains it
+   (mismatch → `E_TARGET_MISMATCH`).
 3. **`SqliteLogStore`** — single-row append per attempt; schema below.
 4. **CLI glue** — `Program.cs` runs the state machine, prints PASS/FAIL,
    writes the log row.
 5. **xUnit tests** — `FlashOptions.Parse` cases + state-machine transitions
-   driven by fixture gdb output.
+   driven by fixture gdb output (PY32 + at least one STM32 sample).
 
-**Sprint 1 done = 50 PASS in a row on the bench with the BMP + a real target.**
+**Sprint 1 done = 50 PASS in a row on the bench with the BMP + the PY32
+target (acceptance hardware). Code stays target-agnostic — no PY32 strings
+in core logic.**
 
 ### Beyond Sprint 1
 
@@ -63,8 +75,22 @@ transcript. This file is the *condensed* working copy of those decisions.
 - **gdb shipping:** chained full ARM toolchain MSI inside our installer
   (NOT vendoring just `gdb.exe`). App detects existing install at the
   standard ARM path; prompts to re-run installer if missing.
-- **MVP product list:** one — `pocket-light` (PY32F002Ax5). Catalog schema
-  supports many; we exercise one.
+- **Target support:** any MCU that Black Magic Probe's `swdp_scan` recognises.
+  Code in `FlashlightApp.Core` MUST stay target-agnostic — no PY32 strings
+  in the state machine, gdb wrapper, or log writer. The catalog entry per
+  product declares the target stack; the app verifies a match at flash time.
+- **Catalog target descriptor** (per product entry, finalised in Sprint 2):
+  - `bmp_match` — substring expected in `monitor swdp_scan` output
+    (e.g. `"PY32F002A"`, `"STM32F103"`). Used by the state machine to
+    fail fast with `E_TARGET_MISMATCH` if wrong board is plugged in.
+  - `flash_kb` — flash size in KB. Drives the timeout budget and a
+    sanity check against the elf section sizes.
+  - `part_number` — display string shown to operators (`"PY32F002Ax5"`).
+- **UI language:** Ukrainian only. No i18n framework; strings hardcoded in
+  WPF and CLI. Error codes (`E_*`) stay English / ASCII; the UI maps each
+  to a Ukrainian hint line.
+- **MVP bench target:** `pocket-light` product, PY32F002Ax5 board. This is
+  the *acceptance test* for Sprint 1, NOT a hardcoded assumption in code.
 - **Operator identity:** free-text dropdown at app start, stored per-station.
 - **Trust root:** signed `catalog.json` (Ed25519, public key embedded in
   exe). Firmware integrity = SHA-256 from the signed catalog.
@@ -97,8 +123,11 @@ arm-none-eabi-gdb.exe -nx --batch
   "<path-to-elf>"
 ```
 
-Wall-clock timeout: 15 seconds (PY32F002A flash is 32 KB; anything slower
-means BMP/USB trouble — fail with `E_TIMEOUT`).
+Wall-clock timeout: scaled to flash size, floor 15 s. For Sprint 1 use a
+flat 15 s (PY32F002A flash is 32 KB; anything slower means BMP/USB trouble).
+For larger MCUs the budget becomes `max(15s, 5s + flash_kb * 0.4s)` —
+revisit during Sprint 2 once the catalog `flash_kb` field is wired.
+Failure code on timeout: `E_TIMEOUT`.
 
 ### SQLite schema
 
@@ -112,6 +141,9 @@ CREATE TABLE flash_attempts (
   product_id      TEXT    NOT NULL,
   firmware_version TEXT   NOT NULL,
   firmware_sha256 TEXT    NOT NULL,
+  target_bmp_match TEXT   NOT NULL,   -- expected from catalog (e.g. "PY32F002A")
+  target_detected TEXT,                -- raw swdp_scan match line we picked
+  target_flash_kb INTEGER NOT NULL,    -- from catalog
   com_port        TEXT    NOT NULL,
   probe_serial    TEXT,
   power_mode      TEXT    NOT NULL,
@@ -127,9 +159,11 @@ CREATE TABLE flash_attempts (
 
 ### Error code taxonomy
 
-`E_PROBE_NOT_FOUND`, `E_PROBE_BUSY`, `E_SCAN_NO_TARGET`, `E_ATTACH_FAILED`,
-`E_LOAD_FAILED`, `E_VERIFY_MISMATCH`, `E_TIMEOUT`, `E_GDB_CRASHED`,
-`E_FW_HASH_MISMATCH`. Each maps to a one-line operator hint in the UI.
+`E_PROBE_NOT_FOUND`, `E_PROBE_BUSY`, `E_SCAN_NO_TARGET`, `E_TARGET_MISMATCH`,
+`E_ATTACH_FAILED`, `E_LOAD_FAILED`, `E_VERIFY_MISMATCH`, `E_TIMEOUT`,
+`E_GDB_CRASHED`, `E_FW_HASH_MISMATCH`. Each maps to a one-line **Ukrainian**
+operator hint in the UI (table lives in `FlashlightApp.Core/ErrorHints.cs`
+once written).
 
 ---
 
@@ -186,19 +220,39 @@ echoes parsed values — it does not invoke gdb yet.
 
 ## Coordination with the firmware repo
 
-The app flashes firmware released from `pocket-light-firmware.git` via
-GitHub Releases. Release asset naming must be strict:
+The app flashes firmware released from any product repo (`pocket-light-firmware`
+is the first) via GitHub Releases. Release asset naming convention:
 
 ```
-pocket-light_v<X.Y.Z>_PY32F002Ax5.elf
-pocket-light_v<X.Y.Z>_PY32F002Ax5.elf.sha256
+<product-id>_v<X.Y.Z>_<part-number>.elf
+<product-id>_v<X.Y.Z>_<part-number>.elf.sha256
+target.json                              # one per release
 ```
 
-If you change the firmware build artefact or rename releases, the catalog
-parser here breaks. Coordinate before renaming.
+Examples:
+- `pocket-light_v1.0.0_PY32F002Ax5.elf`
+- `headlamp_v2.1.0_STM32F103C8.elf`
+
+`target.json` (uploaded as a release asset) declares the target stack so the
+catalog generator and the app can verify firmware ↔ hardware pairing:
+
+```json
+{
+  "product_id":   "pocket-light",
+  "version":      "1.0.0",
+  "part_number":  "PY32F002Ax5",
+  "bmp_match":    "PY32F002A",
+  "flash_kb":     32,
+  "elf_sha256":   "<hex>"
+}
+```
+
+If you change the firmware build artefact, rename releases, or omit
+`target.json`, the catalog parser here breaks. Coordinate before renaming.
 
 A separate `firmware-catalog` repo (TBD) will hold the signed `catalog.json`
-asset and is the single source of truth for what operators can flash.
+asset (an aggregation of per-product `target.json` files) and is the single
+source of truth for what operators can flash.
 
 ---
 
