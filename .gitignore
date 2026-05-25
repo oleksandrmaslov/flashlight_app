@@ -1,0 +1,55 @@
+# Build output
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+
+# .NET / Visual Studio
+.vs/
+*.userprefs
+*.binlog
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Rider / VS Code
+.idea/
+.vscode/
+*.swp
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+TestResults/
+
+# Local config and secrets
+appsettings.Local.json
+secrets.json
+*.pfx
+*.snk
+
+# Packages
+*.nupkg
+**/packages/
+*.lock.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs and local databases (operator runs)
+*.log
+*.sqlite
+*.sqlite-journal
+flasher.sqlite*
+
+# Local firmware cache (developer-only; real cache lives in %ProgramData%)
+cache/
+
+# Vendored tools (filled by installer, not by source control)
+tools/gdb/
