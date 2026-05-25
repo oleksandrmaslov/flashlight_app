@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-25T17:00:00Z",
+  "products": [
+    {
+      "product_id": "pocket-light",
+      "display_name": "Pocket Light",
+      "target": {
+        "bmp_match": "PY32Fxxx",
+        "part_number": "PY32F002Ax5",
+        "flash_kb": 32
+      },
+      "releases": [
+        {
+          "version": "0.1.0-dev",
+          "elf_filename": "app.elf",
+          "elf_sha256": "4514acf573a17487db6ccf52b9e4ef2840bf59c4d743789ee6715eaf5655f2cd",
+          "elf_url": null,
+          "released_at": "2026-05-25T17:00:00Z",
+          "notes": "Local dev build of py32f0-template-project. SHA-256 captured 2026-05-25."
+        }
+      ],
+      "default_release": "0.1.0-dev"
+    }
+  ]
+}

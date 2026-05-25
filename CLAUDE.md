@@ -38,33 +38,61 @@ transcript. This file is the *condensed* working copy of those decisions.
 - Initial commit `5e26828` pushed to `origin/main`.
 - Empty `tests/FlashlightApp.Core.Tests/` ready for content.
 
-### Not yet done (Sprint 1, in order — one commit per chunk)
+### Sprint 1 — done in code; bench acceptance is the only remaining gate
 
-1. **`GdbProcess` wrapper** in `FlashlightApp.Core` — spawns
-   `arm-none-eabi-gdb`, parses stdout line-by-line into events. Generic:
-   takes COM port + power + frequency + connect-reset; nothing PY32-specific.
-2. **`FlashStateMachine`** — 7 states (IDLE → PREPARING → PROBE_CHECK →
-   ATTACH → LOADING → VERIFYING → FINALIZING → PASS/FAIL → LOGGED → IDLE),
-   emits typed outcomes with `error_code`. Accepts an expected
-   `bmp_target_match` string; verifies `swdp_scan` output contains it
-   (mismatch → `E_TARGET_MISMATCH`).
-3. **`SqliteLogStore`** — single-row append per attempt; schema below.
-4. **CLI glue** — `Program.cs` runs the state machine, prints PASS/FAIL,
-   writes the log row.
-5. **xUnit tests** — `FlashOptions.Parse` cases + state-machine transitions
-   driven by fixture gdb output (PY32 + at least one STM32 sample).
+All Sprint 1 chunks landed: `GdbProcess`, `FlashStateMachine`, `SqliteLogStore`,
+CLI wire-up, xUnit suite, BMP auto-detect, gdb auto-detect, ELF pre-flight,
+`--dry-run`, `--list-probes`. **First real HIL pass confirmed on PY32F002Ax5
+board with the lab BMP.** Parser regexes verified against verbatim BMP gdb
+output (see `FlashStateMachineTests.Real_bmp_output_passes_classification`).
 
-**Sprint 1 done = 50 PASS in a row on the bench with the BMP + the PY32
-target (acceptance hardware). Code stays target-agnostic — no PY32 strings
-in core logic.**
+Open Sprint 1 item is bench-time only, not code:
 
-### Beyond Sprint 1
+- **50 PASS in a row** on the bench with one BMP + the pocket-light PY32 board.
+  This is the production-safety acceptance test. Run when convenient; failures
+  will surface parser gaps the fixture tests can't predict.
+
+### Sprint 2 — Catalog + integrity + cache (in flight)
+
+One commit per chunk:
+
+1. **Lock-in + catalog data model** — fix CLAUDE.md `bmp_match` example to
+   `"PY32Fxxx"` (BMP reports PY32 family generically, not part-number);
+   add real-output fixture test; create `Catalog` / `Product` /
+   `FirmwareRelease` / `TargetDescriptor` records + `CatalogJson` parser
+   with validation.
+2. **CLI catalog resolution** — `--catalog <path> --product <id>` resolves
+   `--target` / `--flash-kb` / `--firmware-version` / `--firmware-sha256`
+   from the catalog. Explicit args still override for dev.
+3. **SHA-256 firmware integrity** — `FirmwareCache` with atomic writes;
+   verify ELF SHA-256 against catalog entry before flashing.
+   Wire `E_FW_HASH_MISMATCH`.
+4. **Ed25519 catalog signature** — BouncyCastle dep; two-file format
+   (`catalog.json` + `catalog.json.sig`); embedded public key. Reject
+   unsigned / wrong-signature catalogs unless `--allow-unsigned-catalog`
+   (dev escape hatch, never in production).
+5. **Sideload-from-folder** — `--sideload-dir <path>` scans a directory
+   for `<product-id>_v<X.Y.Z>_<part-number>.elf` + `target.json` sidecars
+   and synthesises a catalog. Useful for ad-hoc batch testing before a
+   release lands in the signed catalog.
+
+### Beyond Sprint 2
 
 | Sprint | Deliverable |
 |---|---|
-| 2 | Signed `catalog.json` + local cache (SHA-256 verify, sideload-from-folder, atomic downloads) |
 | 3 | GitHub App + Device Flow auth, refresh token in DPAPI LocalMachine, private firmware download |
 | 4 | WPF UI (5 screens: Home / Flash / History / Catalog / Settings), batch locking, CSV export, WiX installer chaining ARM toolchain MSI |
+
+### Polish backlog (fold in opportunistically)
+
+- **Two-phase gdb (scan-then-flash)** — today a target mismatch is detected
+  AFTER `load` because both happen in one gdb invocation. For factory safety
+  the scan should be a separate gdb call that aborts before touching flash if
+  the target doesn't match.
+- **Probe serial capture** — read USB serial from registry to populate
+  `probe_serial` column (currently always NULL).
+- **Auto-retry on `E_PROBE_BUSY`** — BMP occasionally fumbles a re-enumerate;
+  one silent retry would smooth that out.
 
 ---
 
@@ -79,13 +107,17 @@ in core logic.**
   Code in `FlashlightApp.Core` MUST stay target-agnostic — no PY32 strings
   in the state machine, gdb wrapper, or log writer. The catalog entry per
   product declares the target stack; the app verifies a match at flash time.
-- **Catalog target descriptor** (per product entry, finalised in Sprint 2):
-  - `bmp_match` — substring expected in `monitor swdp_scan` output
-    (e.g. `"PY32F002A"`, `"STM32F103"`). Used by the state machine to
-    fail fast with `E_TARGET_MISMATCH` if wrong board is plugged in.
+- **Catalog target descriptor** (per product entry, Sprint 2):
+  - `bmp_match` — substring expected in `monitor swdp_scan` output. BMP
+    reports at **family** granularity, not part number — e.g. all PY32F0xx
+    chips come back as `"PY32Fxxx M0+"`, so use `"PY32Fxxx"`. Other examples:
+    `"STM32F103"`, `"STM32F4"`, `"GD32F30"`. Match is case-insensitive
+    substring. Used by the state machine to fail fast with `E_TARGET_MISMATCH`
+    if a wrong-family board is plugged in.
   - `flash_kb` — flash size in KB. Drives the timeout budget and a
     sanity check against the elf section sizes.
   - `part_number` — display string shown to operators (`"PY32F002Ax5"`).
+    NOT used for verification — BMP can't tell variants apart within a family.
 - **UI language:** Ukrainian only. No i18n framework; strings hardcoded in
   WPF and CLI. Error codes (`E_*`) stay English / ASCII; the UI maps each
   to a Ukrainian hint line.

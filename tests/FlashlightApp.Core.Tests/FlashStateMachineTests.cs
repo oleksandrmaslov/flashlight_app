@@ -157,4 +157,64 @@ public class FlashStateMachineTests
         Assert.Equal("E_GDB_CRASHED", outcome.ErrorCode);
         Assert.Equal("PY32F002A M0+", outcome.DetectedTarget);
     }
+
+    /// <summary>
+    /// Verbatim gdb output captured from the lab BMP flashing app.elf onto a
+    /// PY32F002Ax5 board on 2026-05-25. Pins down what real BMP output looks
+    /// like so the parser regexes can't silently regress. Note BMP reports the
+    /// PY32 family generically as "PY32Fxxx M0+", not the specific part number —
+    /// the catalog bmp_match for PY32 products must be "PY32Fxxx".
+    /// </summary>
+    private static readonly string[] RealBmpPy32Output = new[]
+    {
+        "C:\\Program Files (x86)\\GNU Arm Embedded Toolchain\\10 2021.10\\bin\\arm-none-eabi-gdb.exe: warning: Couldn't determine a path for the index cache directory.",
+        "Debug iface frequency set to 1384615Hz",
+        "Target voltage: 3.9V",
+        "Available Targets:",
+        "No. Att Driver",
+        " 1      PY32Fxxx M0+",
+        "HAL_InitTick (TickPriority=<optimized out>) at Libraries/PY32F0xx_HAL_Driver/Src/py32f0xx_hal.c:266",
+        "266        return status;",
+        "Loading section .isr_vector, size 0xc0 lma 0x8000000",
+        "Loading section .text, size 0x2e74 lma 0x80000c0",
+        "Loading section .rodata, size 0x144 lma 0x8002f34",
+        "Loading section .init_array, size 0x4 lma 0x8003078",
+        "Loading section .fini_array, size 0x4 lma 0x800307c",
+        "Loading section .data, size 0x44 lma 0x8003080",
+        "Start address 0x08002ec8, load size 12484",
+        "Transfer rate: 8 KB/sec, 693 bytes/write.",
+        "Section .isr_vector, range 0x8000000 -- 0x80000c0: matched.",
+        "Section .text, range 0x80000c0 -- 0x8002f34: matched.",
+        "Section .rodata, range 0x8002f34 -- 0x8003078: matched.",
+        "Section .init_array, range 0x8003078 -- 0x800307c: matched.",
+        "Section .fini_array, range 0x800307c -- 0x8003080: matched.",
+        "Section .data, range 0x8003080 -- 0x80030c4: matched.",
+        "[Inferior 1 (Remote target) killed]",
+    };
+
+    [Fact]
+    public void Real_bmp_output_passes_classification()
+    {
+        var outcome = FlashStateMachine.Classify(Run(RealBmpPy32Output), "PY32Fxxx");
+        Assert.True(outcome.IsPass, $"expected PASS, got {outcome.ErrorCode}: {outcome.ErrorMessage}");
+        Assert.Equal("PY32Fxxx M0+", outcome.DetectedTarget);
+    }
+
+    [Fact]
+    public void Real_bmp_output_fails_with_too_specific_target()
+    {
+        // Documents the trap that caused our first HIL run to false-fail:
+        // BMP reports family granularity only, so part-number expectations mismatch.
+        var outcome = FlashStateMachine.Classify(Run(RealBmpPy32Output), "PY32F002A");
+        Assert.Equal("E_TARGET_MISMATCH", outcome.ErrorCode);
+        Assert.Equal("PY32Fxxx M0+", outcome.DetectedTarget);
+    }
+
+    [Fact]
+    public void Real_bmp_output_detects_all_six_loaded_sections()
+    {
+        var events = GdbOutputParser.Parse(Run(RealBmpPy32Output).Output);
+        Assert.Equal(6, events.Count(e => e.Kind == GdbEventKind.LoadingSection));
+        Assert.Equal(6, events.Count(e => e.Kind == GdbEventKind.SectionMatched));
+    }
 }

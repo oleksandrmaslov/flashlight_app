@@ -46,6 +46,8 @@ Thumbs.db
 *.log
 *.sqlite
 *.sqlite-journal
+*.db
+*.db-journal
 flasher.sqlite*
 
 # Local firmware cache (developer-only; real cache lives in %ProgramData%)
