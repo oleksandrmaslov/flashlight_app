@@ -12,6 +12,43 @@ if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
 if (args.Contains("--list-probes"))
     return ListProbes();
 
+if (args.Contains("--gen-keypair"))
+    return GenKeypair(args);
+
+if (args.Contains("--sign-catalog"))
+    return SignCatalog(args);
+
+bool requireSigned = args.Contains("--require-signed-catalog");
+args = args.Where(a => a != "--require-signed-catalog").ToArray();
+
+int catIdx = Array.IndexOf(args, "--catalog");
+if (catIdx >= 0 && catIdx + 1 < args.Length)
+{
+    var catalogPath = args[catIdx + 1];
+    var trust = CatalogTrust.VerifyCatalogFile(catalogPath, requireSigned);
+    switch (trust)
+    {
+        case CatalogTrustResult.Verified:
+            Console.WriteLine("Підпис каталогу: ✓ (Ed25519)");
+            break;
+        case CatalogTrustResult.UnsignedAllowed:
+            Console.WriteLine("Підпис каталогу: відсутній (для production додайте --require-signed-catalog)");
+            break;
+        case CatalogTrustResult.UnsignedRejected:
+            Console.Error.WriteLine("Помилка: каталог не підписано, --require-signed-catalog активний.");
+            return 2;
+        case CatalogTrustResult.BadSignature:
+            Console.Error.WriteLine("Помилка: підпис каталогу не співпадає з ключем у застосунку.");
+            return 2;
+        case CatalogTrustResult.NoPublicKeyConfigured:
+            Console.Error.WriteLine("Помилка: каталог підписано, але у застосунку немає публічного ключа.");
+            return 2;
+        case CatalogTrustResult.IoError:
+            Console.Error.WriteLine("Помилка: не вдалося прочитати файл підпису каталогу.");
+            return 2;
+    }
+}
+
 var resolution = CatalogResolver.Resolve(args);
 if (!resolution.Ok)
 {
@@ -231,6 +268,66 @@ catch (Exception ex)
 
 return outcome.IsPass ? 0 : 1;
 
+static int GenKeypair(string[] args)
+{
+    int i = Array.IndexOf(args, "--gen-keypair");
+    if (i + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("--gen-keypair requires <out-dir>");
+        return 2;
+    }
+    var dir = args[i + 1];
+    Directory.CreateDirectory(dir);
+    var kp = CatalogSignature.GenerateKeypair();
+    var pubB64  = Convert.ToBase64String(kp.PublicKey);
+    var privB64 = Convert.ToBase64String(kp.PrivateKey);
+    var pubPath  = Path.Combine(dir, "catalog-key.pub");
+    var privPath = Path.Combine(dir, "catalog-key.priv");
+    File.WriteAllText(pubPath,  pubB64);
+    File.WriteAllText(privPath, privB64);
+    Console.WriteLine($"public key  → {pubPath}");
+    Console.WriteLine($"private key → {privPath}");
+    Console.WriteLine();
+    Console.WriteLine("Public key (base64) — paste into CatalogTrust.EmbeddedPublicKeyBase64:");
+    Console.WriteLine(pubB64);
+    return 0;
+}
+
+static int SignCatalog(string[] args)
+{
+    int i = Array.IndexOf(args, "--sign-catalog");
+    if (i + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("--sign-catalog requires <catalog-path>");
+        return 2;
+    }
+    int j = Array.IndexOf(args, "--private-key");
+    if (j < 0 || j + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("--sign-catalog requires --private-key <path>");
+        return 2;
+    }
+    var catalogPath = args[i + 1];
+    var keyPath     = args[j + 1];
+    if (!File.Exists(catalogPath))
+    {
+        Console.Error.WriteLine($"catalog not found: {catalogPath}");
+        return 2;
+    }
+    if (!File.Exists(keyPath))
+    {
+        Console.Error.WriteLine($"private key not found: {keyPath}");
+        return 2;
+    }
+    var priv  = Convert.FromBase64String(File.ReadAllText(keyPath).Trim());
+    var bytes = File.ReadAllBytes(catalogPath);
+    var sig   = CatalogSignature.Sign(bytes, priv);
+    var sigPath = CatalogTrust.SignaturePathFor(catalogPath);
+    File.WriteAllText(sigPath, Convert.ToBase64String(sig));
+    Console.WriteLine($"signed → {sigPath}");
+    return 0;
+}
+
 static int ListProbes()
 {
     var all = ProbeDiscovery.FindAll();
@@ -284,6 +381,10 @@ static void PrintUsage()
 
           FlashlightApp.Cli --list-probes    показати підключені програматори
           FlashlightApp.Cli --help           ця довідка
+
+        Підпис каталогу (Sprint 2):
+          [--require-signed-catalog]   обовʼязковий Ed25519-підпис .sig поруч
+                                       з catalog.json; інакше відмова.
 
         Каталог підставляє --target / --flash-kb / --firmware-version /
         --firmware-sha256 / --elf якщо вони не вказані явно. Шлях до ELF

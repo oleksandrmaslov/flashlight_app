@@ -52,29 +52,50 @@ Open Sprint 1 item is bench-time only, not code:
   This is the production-safety acceptance test. Run when convenient; failures
   will surface parser gaps the fixture tests can't predict.
 
-### Sprint 2 — Catalog + integrity + cache (in flight)
+### Sprint 2 — Catalog + integrity + signature (chunks 1–4 done, chunk 5 deferred)
 
-One commit per chunk:
-
-1. **Lock-in + catalog data model** — fix CLAUDE.md `bmp_match` example to
-   `"PY32Fxxx"` (BMP reports PY32 family generically, not part-number);
-   add real-output fixture test; create `Catalog` / `Product` /
-   `FirmwareRelease` / `TargetDescriptor` records + `CatalogJson` parser
-   with validation.
-2. **CLI catalog resolution** — `--catalog <path> --product <id>` resolves
+1. ✅ **Lock-in + catalog data model** — `Catalog` / `Product` /
+   `FirmwareRelease` / `TargetDescriptor` records; `CatalogJson` parser with
+   validation; real-BMP fixture test; CLAUDE.md `bmp_match` corrected to
+   `"PY32Fxxx"`.
+2. ✅ **CLI catalog resolution** — `--catalog <path> --product <id>` resolves
    `--target` / `--flash-kb` / `--firmware-version` / `--firmware-sha256`
-   from the catalog. Explicit args still override for dev.
-3. **SHA-256 firmware integrity** — `FirmwareCache` with atomic writes;
-   verify ELF SHA-256 against catalog entry before flashing.
-   Wire `E_FW_HASH_MISMATCH`.
-4. **Ed25519 catalog signature** — BouncyCastle dep; two-file format
-   (`catalog.json` + `catalog.json.sig`); embedded public key. Reject
-   unsigned / wrong-signature catalogs unless `--allow-unsigned-catalog`
-   (dev escape hatch, never in production).
-5. **Sideload-from-folder** — `--sideload-dir <path>` scans a directory
-   for `<product-id>_v<X.Y.Z>_<part-number>.elf` + `target.json` sidecars
-   and synthesises a catalog. Useful for ad-hoc batch testing before a
-   release lands in the signed catalog.
+   / `--elf` from the catalog. Explicit CLI args override.
+3. ✅ **SHA-256 firmware integrity** — `FirmwareIntegrity` compares ELF
+   SHA-256 against catalog entry before flashing; mismatch synthesises a
+   `E_FW_HASH_MISMATCH` outcome, logs it, gdb never spawns. Exit 1.
+4. ✅ **Ed25519 catalog signature** — BouncyCastle dep; two-file format
+   (`catalog.json` + `catalog.json.sig`, base64); dev public key embedded
+   in `CatalogTrust.EmbeddedPublicKeyBase64`. CLI flag
+   `--require-signed-catalog` rejects unsigned / bad-signature catalogs.
+5. ⏸️ **Sideload-from-folder** (deferred — minor convenience, easy to add
+   later) — `--sideload-dir <path>` would scan a directory for
+   `<product-id>_v<X.Y.Z>_<part-number>.elf` + `target.json` sidecars and
+   synthesise an in-memory catalog. Use case: ad-hoc test ELFs before a
+   release is added to the signed catalog.
+
+### Dev catalog signing workflow
+
+The dev keypair lives **outside** the repo at
+`~/.claude/projects/c--Users-Alexandr-flashlight-app/keys/catalog-key.{pub,priv}`.
+The public key matching it is embedded in
+[`CatalogTrust.EmbeddedPublicKeyBase64`](src/FlashlightApp.Core/CatalogTrust.cs).
+The private key is **never** committed.
+
+Re-sign `examples/catalog.json` after edits:
+
+```powershell
+$priv = "C:\Users\IMT - Teilnehmer\.claude\projects\c--Users-Alexandr-flashlight-app\keys\catalog-key.priv"
+dotnet run --project src/FlashlightApp.Cli -- --sign-catalog examples/catalog.json --private-key $priv
+```
+
+Rotate to a production key before factory deployment:
+
+1. Generate new keypair on a secured workstation:
+   `dotnet run --project src/FlashlightApp.Cli -- --gen-keypair <secure-dir>`
+2. Update `CatalogTrust.EmbeddedPublicKeyBase64` with the printed base64.
+3. Re-sign the production `catalog.json` with the new private key.
+4. Store the production private key in an HSM / vault; never on the lab box.
 
 ### Beyond Sprint 2
 
