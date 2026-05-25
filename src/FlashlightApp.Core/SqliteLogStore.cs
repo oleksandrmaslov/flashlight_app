@@ -2,6 +2,22 @@ using Microsoft.Data.Sqlite;
 
 namespace FlashlightApp.Core;
 
+/// <summary>
+/// Read DTO for the history view — a subset of the columns, with id and
+/// already-parsed timestamp for display.
+/// </summary>
+public sealed record FlashAttemptRow(
+    long Id,
+    DateTime TsUtc,
+    string Operator,
+    string BatchId,
+    string ProductId,
+    string FirmwareVersion,
+    string Result,
+    string? ErrorCode,
+    long DurationMs,
+    string? TargetDetected);
+
 public sealed record FlashAttemptRecord(
     DateTime TsUtc,
     string Operator,
@@ -86,6 +102,54 @@ public sealed class SqliteLogStore : IDisposable
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM flash_attempts;";
         return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    public IReadOnlyList<FlashAttemptRow> QueryRecent(int limit = 200)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT id, ts_utc, operator, batch_id, product_id, firmware_version,
+                   result, error_code, duration_ms, target_detected
+            FROM flash_attempts
+            ORDER BY id DESC
+            LIMIT $limit;
+            """;
+        cmd.Parameters.AddWithValue("$limit", limit);
+        using var reader = cmd.ExecuteReader();
+        var rows = new List<FlashAttemptRow>();
+        while (reader.Read())
+        {
+            rows.Add(new FlashAttemptRow(
+                Id:              reader.GetInt64(0),
+                TsUtc:           DateTime.Parse(reader.GetString(1)).ToUniversalTime(),
+                Operator:        reader.GetString(2),
+                BatchId:         reader.GetString(3),
+                ProductId:       reader.GetString(4),
+                FirmwareVersion: reader.GetString(5),
+                Result:          reader.GetString(6),
+                ErrorCode:       reader.IsDBNull(7) ? null : reader.GetString(7),
+                DurationMs:      reader.GetInt64(8),
+                TargetDetected:  reader.IsDBNull(9) ? null : reader.GetString(9)));
+        }
+        return rows;
+    }
+
+    public (int Total, int Pass, int Fail) CountsForBatch(string batchId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT
+              SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END) AS pass,
+              SUM(CASE WHEN result = 'FAIL' THEN 1 ELSE 0 END) AS fail
+            FROM flash_attempts
+            WHERE batch_id = $batch;
+            """;
+        cmd.Parameters.AddWithValue("$batch", batchId);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return (0, 0, 0);
+        int pass = reader.IsDBNull(0) ? 0 : reader.GetInt32(0);
+        int fail = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
+        return (pass + fail, pass, fail);
     }
 
     private const string SchemaSql = """

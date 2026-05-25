@@ -103,22 +103,26 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
 
 Sprint 4 sub-plan:
 
-1. ✅ **MVP single-screen WPF** — `src/FlashlightApp.Wpf/`. One window: status
-   strip (port / gdb / catalog), operator + batch + product form, giant
-   PASS/FAIL banner, single "ПРОШИТИ ПЛАТУ" button, gdb output panel at
-   bottom. Wires to Core (catalog, integrity, state machine, log). Logs to
-   `%LOCALAPPDATA%\FlashlightApp\flash_log.db`. Catalog discovery looks in
-   `examples/catalog.json` next to the exe by default. Code-behind, no MVVM
-   framework — kept tight for MVP; refactor to MVVM if the UI grows.
-2. ⏳ **History screen** — TabControl tab listing recent attempts from
-   SQLite. Per-batch pass-rate summary. CSV export.
-3. ⏳ **Catalog browser screen** — shows the catalog: products, versions,
-   target descriptors, SHA-256s, signature status.
-4. ⏳ **Settings screen** — gdb path override, db path override, station id,
-   `require_signed_catalog` toggle, catalog path picker. Persisted in
-   `%LOCALAPPDATA%\FlashlightApp\settings.json`.
-5. ⏳ **Batch locking** — once a batch starts, firmware version is locked;
-   switching product mid-batch errors with a clear message.
+1. ✅ **MVP single-screen WPF** — `src/FlashlightApp.Wpf/`. Status strip,
+   operator + batch + product form, giant PASS/FAIL banner, FLASH button,
+   gdb output panel. Wires to Core; logs to `%LOCALAPPDATA%\FlashlightApp\flash_log.db`.
+2. ✅ **History tab + Settings tab + persistence** — `MainWindow` is now a
+   `TabControl` (Прошивка / Історія / Налаштування). History tab shows
+   recent attempts via `SqliteLogStore.QueryRecent` in a `DataGrid` and a
+   per-batch PASS/FAIL summary line. Settings tab edits catalog path,
+   `require_signed_catalog` toggle, gdb path override, BMP frequency,
+   power mode (external/probe), connect-under-reset, timeout, log db path,
+   station id — persisted to `%LOCALAPPDATA%\FlashlightApp\settings.json`
+   via `AppSettings` + `AppSettingsStore` (atomic `.tmp` rename).
+   Flash logic now reads from `_settings`; explicit "Зберегти" rediscovers
+   gdb + reloads catalog.
+3. ⏳ **Catalog browser tab** — shows the catalog: products, versions,
+   target descriptors, SHA-256s, signature status. (Settings already covers
+   most of this; this tab is the human-readable view.)
+4. ⏳ **Batch locking** — once a batch starts, firmware version is locked;
+   switching product or version mid-batch errors with a clear message.
+5. ⏳ **CSV export** — per-batch and full-history CSV download from the
+   History tab.
 6. ⏳ **WiX installer** — single `.msi` that chains the ARM toolchain MSI,
    drops `FlashlightApp.exe` + `catalog.json` + `catalog.json.sig` into
    `%ProgramFiles%\FlashlightApp\`, adds Start Menu + Desktop shortcuts.
