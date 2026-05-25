@@ -1,7 +1,7 @@
 using System.Runtime.Versioning;
 using Microsoft.Win32;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 public enum ProbeInterface { Gdb, Uart, Unknown }
 

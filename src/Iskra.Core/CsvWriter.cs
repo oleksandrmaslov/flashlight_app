@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// RFC 4180 CSV escaping. Fields are quoted only when they contain a comma,

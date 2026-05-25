@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Conceptually a state machine over the gdb run lifecycle

@@ -1,6 +1,6 @@
-using FlashlightApp.Core;
+using Iskra.Core;
 
-namespace FlashlightApp.Core.Tests;
+namespace Iskra.Core.Tests;
 
 public class FlashOptionsTests
 {

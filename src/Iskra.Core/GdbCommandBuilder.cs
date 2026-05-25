@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Builds the <c>-ex</c> argument list for an <c>arm-none-eabi-gdb --batch</c> invocation

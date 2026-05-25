@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// What the catalog promises a given product is, target-stack-wise.

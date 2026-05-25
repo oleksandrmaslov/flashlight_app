@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Quick sanity checks on the ELF file before handing it to gdb.

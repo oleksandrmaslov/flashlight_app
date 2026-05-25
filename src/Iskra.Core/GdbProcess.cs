@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 public enum GdbStream { Stdout, Stderr }
 

@@ -3,10 +3,10 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using FlashlightApp.Core;
+using Iskra.Core;
 using Microsoft.Win32;
 
-namespace FlashlightApp.Wpf;
+namespace Iskra.Wpf;
 
 public partial class MainWindow : Window
 {
@@ -358,7 +358,7 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(_settings.DbPath)) return _settings.DbPath;
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FlashlightApp");
+            "Iskra");
         Directory.CreateDirectory(dir);
         return Path.Combine(dir, "flash_log.db");
     }

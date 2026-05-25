@@ -1,4 +1,4 @@
-# Builds a release MSI for FlashlightApp.
+# Builds a release MSI for Iskra.
 #
 # Steps:
 #   1. Publish the WPF app as a single-file, self-contained Windows-x64 exe.
@@ -6,8 +6,8 @@
 #   3. Run wix to compile installer/Product.wxs into a .msi.
 #
 # Outputs:
-#   publish/win-x64/FlashlightApp.exe   (the published app)
-#   installer/out/FlashlightApp-<ver>-x64.msi
+#   publish/win-x64/Iskra.exe   (the published app)
+#   installer/out/Iskra-<ver>-x64.msi
 #
 # Requires:
 #   * .NET 8 SDK on PATH (or LOCALAPPDATA install — script handles both)
@@ -32,7 +32,7 @@ $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH;$env:USERPROFILE\.dotn
 
 Write-Host "[1/3] dotnet publish (single-file, self-contained, $Runtime)" -ForegroundColor Cyan
 $publishDir = Join-Path $repoRoot "publish\$Runtime"
-dotnet publish src/FlashlightApp.Wpf `
+dotnet publish src/Iskra.Wpf `
     -c $Configuration `
     -r $Runtime `
     --self-contained true `
@@ -41,8 +41,8 @@ dotnet publish src/FlashlightApp.Wpf `
     -o $publishDir | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)" }
 
-if (-not (Test-Path (Join-Path $publishDir "FlashlightApp.exe"))) {
-    throw "publish completed but FlashlightApp.exe not at $publishDir"
+if (-not (Test-Path (Join-Path $publishDir "Iskra.exe"))) {
+    throw "publish completed but Iskra.exe not at $publishDir"
 }
 
 Write-Host "[2/3] wix extension add WixToolset.UI.wixext/5.0.2 (idempotent)" -ForegroundColor Cyan
@@ -56,10 +56,10 @@ if ($extList -notmatch "WixToolset\.UI\.wixext") {
     Write-Host "  (already installed)"
 }
 
-Write-Host "[3/3] wix build -> installer/out/FlashlightApp-$Version-x64.msi" -ForegroundColor Cyan
+Write-Host "[3/3] wix build -> installer/out/Iskra-$Version-x64.msi" -ForegroundColor Cyan
 $outDir = Join-Path $PSScriptRoot "out"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$msiPath = Join-Path $outDir "FlashlightApp-$Version-x64.msi"
+$msiPath = Join-Path $outDir "Iskra-$Version-x64.msi"
 
 wix build `
     (Join-Path $PSScriptRoot "Product.wxs") `

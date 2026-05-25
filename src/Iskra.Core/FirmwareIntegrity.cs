@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// SHA-256 helpers for verifying firmware ELFs against a catalog entry.

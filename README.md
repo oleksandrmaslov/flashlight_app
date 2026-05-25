@@ -1,4 +1,4 @@
-# FlashlightApp
+# Iskra
 
 Production flashing tool for PY32F0xx-based flashlight firmware. Drives a
 Black Magic Probe via `arm-none-eabi-gdb` and logs every flash attempt.
@@ -8,15 +8,15 @@ Black Magic Probe via `arm-none-eabi-gdb` and logs every flash attempt.
 ## Repository layout
 
 ```
-FlashlightApp.sln
+Iskra.sln
 src/
-  FlashlightApp.Core/       Class library — services, state machine, models
-  FlashlightApp.Cli/        Console flasher (Sprint 1 deliverable)
+  Iskra.Core/       Class library — services, state machine, models
+  Iskra.Cli/        Console flasher (Sprint 1 deliverable)
 tests/
-  FlashlightApp.Core.Tests/ xUnit tests for the Core library
+  Iskra.Core.Tests/ xUnit tests for the Core library
 ```
 
-WPF UI lands in Sprint 4 as `src/FlashlightApp.Wpf/`.
+WPF UI lands in Sprint 4 as `src/Iskra.Wpf/`.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ dotnet build
 Sprint 1 target — flashing a single device end-to-end from the command line:
 
 ```powershell
-dotnet run --project src/FlashlightApp.Cli -- `
+dotnet run --project src/Iskra.Cli -- `
   --elf .\path\to\app.elf `
   --port \\.\COM30 `
   --power probe `

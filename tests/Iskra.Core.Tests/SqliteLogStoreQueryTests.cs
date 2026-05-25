@@ -1,7 +1,7 @@
-using FlashlightApp.Core;
+using Iskra.Core;
 using Microsoft.Data.Sqlite;
 
-namespace FlashlightApp.Core.Tests;
+namespace Iskra.Core.Tests;
 
 public class SqliteLogStoreQueryTests
 {

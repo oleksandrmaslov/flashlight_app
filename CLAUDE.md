@@ -1,4 +1,4 @@
-# CLAUDE.md — FlashlightApp
+# CLAUDE.md — Iskra
 
 Session handoff. Read this fully at the start of any new Claude session in this repo.
 
@@ -29,14 +29,14 @@ transcript. This file is the *condensed* working copy of those decisions.
 
 - Architecture proposal complete (catalog, GitHub auth, state machine, error
   codes, security, MVP plan, UI screens).
-- Sibling repo cloned at `C:\Users\Alexandr\flashlight_app\`.
+- Sibling repo cloned at `C:\Users\Alexandr\iskra\`.
 - .NET 8 SDK installed **per-user** at
   `C:\Users\IMT - Teilnehmer\AppData\Local\Microsoft\dotnet\` (not on system PATH).
-- Solution scaffolded — `FlashlightApp.sln` with three projects, builds clean.
-- CLI stub (`FlashlightApp.Cli`) parses the planned option surface; does NOT
+- Solution scaffolded — `Iskra.sln` with three projects, builds clean.
+- CLI stub (`Iskra.Cli`) parses the planned option surface; does NOT
   flash yet.
 - Initial commit `5e26828` pushed to `origin/main`.
-- Empty `tests/FlashlightApp.Core.Tests/` ready for content.
+- Empty `tests/Iskra.Core.Tests/` ready for content.
 
 ### Sprint 1 — done in code; bench acceptance is the only remaining gate
 
@@ -77,22 +77,22 @@ Open Sprint 1 item is bench-time only, not code:
 ### Dev catalog signing workflow
 
 The dev keypair lives **outside** the repo at
-`~/.claude/projects/c--Users-Alexandr-flashlight-app/keys/catalog-key.{pub,priv}`.
+`~/.claude/projects/c--Users-Alexandr-iskra/keys/catalog-key.{pub,priv}`.
 The public key matching it is embedded in
-[`CatalogTrust.EmbeddedPublicKeyBase64`](src/FlashlightApp.Core/CatalogTrust.cs).
+[`CatalogTrust.EmbeddedPublicKeyBase64`](src/Iskra.Core/CatalogTrust.cs).
 The private key is **never** committed.
 
 Re-sign `examples/catalog.json` after edits:
 
 ```powershell
-$priv = "C:\Users\IMT - Teilnehmer\.claude\projects\c--Users-Alexandr-flashlight-app\keys\catalog-key.priv"
-dotnet run --project src/FlashlightApp.Cli -- --sign-catalog examples/catalog.json --private-key $priv
+$priv = "C:\Users\IMT - Teilnehmer\.claude\projects\c--Users-Alexandr-iskra\keys\catalog-key.priv"
+dotnet run --project src/Iskra.Cli -- --sign-catalog examples/catalog.json --private-key $priv
 ```
 
 Rotate to a production key before factory deployment:
 
 1. Generate new keypair on a secured workstation:
-   `dotnet run --project src/FlashlightApp.Cli -- --gen-keypair <secure-dir>`
+   `dotnet run --project src/Iskra.Cli -- --gen-keypair <secure-dir>`
 2. Update `CatalogTrust.EmbeddedPublicKeyBase64` with the printed base64.
 3. Re-sign the production `catalog.json` with the new private key.
 4. Store the production private key in an HSM / vault; never on the lab box.
@@ -101,12 +101,12 @@ Rotate to a production key before factory deployment:
 
 User picked **Sprint 4 as MVP first, then Sprint 3**.
 
-1. ✅ **MVP single-screen WPF** — `src/FlashlightApp.Wpf/`. Status strip,
+1. ✅ **MVP single-screen WPF** — `src/Iskra.Wpf/`. Status strip,
    operator + batch + product form, giant PASS/FAIL banner, FLASH button,
    gdb output panel. Wires to Core.
 2. ✅ **History + Settings tabs + persistence** — `MainWindow` is a
    `TabControl` with four tabs (Прошивка / Історія / Каталог / Налаштування).
-   Settings persisted to `%LOCALAPPDATA%\FlashlightApp\settings.json` via
+   Settings persisted to `%LOCALAPPDATA%\Iskra\settings.json` via
    `AppSettings` + atomic `.tmp` rename. Flash logic reads frequency,
    power, connect-reset, timeout, gdb path, db path from settings.
 3. ✅ **Catalog browser tab** — read-only view of the parsed catalog:
@@ -127,8 +127,8 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
 6. ✅ **WiX installer** — `installer/Product.wxs` (WiX 5; UI extension
    pinned to 5.0.2). MSI codepage 1251 + language 1058 (Ukrainian).
    `installer/build-installer.ps1` runs `dotnet publish` (single-file,
-   self-contained, win-x64) then `wix build` → `installer/out/FlashlightApp-<ver>-x64.msi`.
-   Per-machine scope, installs to `C:\Program Files\FlashlightApp\`,
+   self-contained, win-x64) then `wix build` → `installer/out/Iskra-<ver>-x64.msi`.
+   Per-machine scope, installs to `C:\Program Files\Iskra\`,
    Start Menu shortcut, examples/catalog.json + .sig bundled.
    **Does NOT yet chain the ARM toolchain MSI** — operator installs that
    separately. Bundle/chain support is a follow-up (needs an Arm GNU
@@ -162,7 +162,7 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
   (NOT vendoring just `gdb.exe`). App detects existing install at the
   standard ARM path; prompts to re-run installer if missing.
 - **Target support:** any MCU that Black Magic Probe's `swdp_scan` recognises.
-  Code in `FlashlightApp.Core` MUST stay target-agnostic — no PY32 strings
+  Code in `Iskra.Core` MUST stay target-agnostic — no PY32 strings
   in the state machine, gdb wrapper, or log writer. The catalog entry per
   product declares the target stack; the app verifies a match at flash time.
 - **Catalog target descriptor** (per product entry, Sprint 2):
@@ -252,7 +252,7 @@ CREATE TABLE flash_attempts (
 `E_PROBE_NOT_FOUND`, `E_PROBE_BUSY`, `E_SCAN_NO_TARGET`, `E_TARGET_MISMATCH`,
 `E_ATTACH_FAILED`, `E_LOAD_FAILED`, `E_VERIFY_MISMATCH`, `E_TIMEOUT`,
 `E_GDB_CRASHED`, `E_FW_HASH_MISMATCH`. Each maps to a one-line **Ukrainian**
-operator hint in the UI (table lives in `FlashlightApp.Core/ErrorHints.cs`
+operator hint in the UI (table lives in `Iskra.Core/ErrorHints.cs`
 once written).
 
 ---
@@ -260,17 +260,17 @@ once written).
 ## Repository layout
 
 ```
-FlashlightApp.sln
+Iskra.sln
 src/
-  FlashlightApp.Core/        Class library — services, state machine, models
+  Iskra.Core/        Class library — services, state machine, models
     FlashOptions.cs
-  FlashlightApp.Cli/         Console flasher (Sprint 1)
+  Iskra.Cli/         Console flasher (Sprint 1)
     Program.cs               (current stub: arg parsing only)
 tests/
-  FlashlightApp.Core.Tests/  xUnit (empty)
+  Iskra.Core.Tests/  xUnit (empty)
 ```
 
-WPF project lands in Sprint 4 as `src/FlashlightApp.Wpf/`.
+WPF project lands in Sprint 4 as `src/Iskra.Wpf/`.
 
 ---
 
@@ -300,7 +300,7 @@ WPF project lands in Sprint 4 as `src/FlashlightApp.Wpf/`.
 $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
 dotnet build
 dotnet test
-dotnet run --project src/FlashlightApp.Cli -- --help
+dotnet run --project src/Iskra.Cli -- --help
 ```
 
 The current CLI stub accepts the full Sprint 1 option surface and just
@@ -374,7 +374,7 @@ source of truth for what operators can flash.
 
 ### User profile (build context, not gossip)
 
-- Owns this app repo (`oleksandrmaslov/flashlight_app`) and the firmware repo
+- Owns this app repo (`oleksandrmaslov/iskra`) and the firmware repo
   (`oleksandrmaslov/pocket-light-firmware`).
 - Direct, action-oriented; prefers to be shown options and pick quickly.
 - Comfortable in C# / .NET though primary domain is embedded C.
@@ -388,6 +388,6 @@ source of truth for what operators can flash.
 ## Memory file (firmware repo)
 
 The firmware-side Claude has a project memory at
-`~/.claude/projects/c--Users-Alexandr-py32f0-template-project/memory/flashlight_app_project.md`
+`~/.claude/projects/c--Users-Alexandr-py32f0-template-project/memory/iskra_project.md`
 pointing at this repo. Keep both in sync: if you change a decision here,
 update that file too.

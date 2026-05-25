@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Locates <c>arm-none-eabi-gdb</c> on the current machine. Search order:

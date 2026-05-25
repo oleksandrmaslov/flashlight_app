@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\FlashlightApp.Core\FlashlightApp.Core.csproj" />
+    <ProjectReference Include="..\Iskra.Core\Iskra.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -1,7 +1,7 @@
 using System.Text;
-using FlashlightApp.Core;
+using Iskra.Core;
 
-namespace FlashlightApp.Core.Tests;
+namespace Iskra.Core.Tests;
 
 public class CatalogSignatureTests
 {

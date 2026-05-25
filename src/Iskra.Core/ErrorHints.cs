@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Ukrainian one-line operator hints for each E_* code. UI and CLI render these

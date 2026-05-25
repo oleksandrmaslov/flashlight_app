@@ -2,7 +2,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
-  <Package Name="FlashlightApp"
+  <Package Name="Iskra"
            Manufacturer="Oleksandr Maslov"
            Version="$(var.AppVersion)"
            UpgradeCode="EE1F8E50-1E11-4D5B-9B3D-9E1B2C7A8F30"
@@ -17,19 +17,19 @@
     <MediaTemplate EmbedCab="yes" />
 
     <!-- Upgrade policy: install the latest, uninstall older versions automatically. -->
-    <MajorUpgrade DowngradeErrorMessage="Уже встановлено новішу версію FlashlightApp." />
+    <MajorUpgrade DowngradeErrorMessage="Уже встановлено новішу версію Iskra." />
 
     <!-- Default Wix UI: progress + EULA-less minimal install -->
     <ui:WixUI Id="WixUI_Minimal" />
 
-    <Feature Id="MainFeature" Title="FlashlightApp" Level="1">
+    <Feature Id="MainFeature" Title="Iskra" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="ExampleFiles" />
       <ComponentRef Id="AppStartMenuShortcut" />
     </Feature>
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="FlashlightApp">
+      <Directory Id="INSTALLFOLDER" Name="Iskra">
         <Directory Id="ExamplesFolder" Name="examples" />
       </Directory>
     </StandardDirectory>
@@ -37,12 +37,12 @@
     <StandardDirectory Id="ProgramMenuFolder">
       <Component Id="AppStartMenuShortcut" Guid="2E3F8C50-3A21-4B7C-92AC-7D5E1F2C8B41">
         <Shortcut Id="AppStartMenuShortcutTarget"
-                  Name="FlashlightApp"
+                  Name="Iskra"
                   Description="Прошивка через Black Magic Probe"
-                  Target="[INSTALLFOLDER]FlashlightApp.exe"
+                  Target="[INSTALLFOLDER]Iskra.exe"
                   WorkingDirectory="INSTALLFOLDER" />
         <RegistryValue Root="HKCU"
-                       Key="Software\FlashlightApp"
+                       Key="Software\Iskra"
                        Name="installed"
                        Type="integer"
                        Value="1"
@@ -52,7 +52,7 @@
 
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Component>
-        <File Source="$(var.PublishDir)\FlashlightApp.exe" />
+        <File Source="$(var.PublishDir)\Iskra.exe" />
       </Component>
     </ComponentGroup>
 

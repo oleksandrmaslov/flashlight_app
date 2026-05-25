@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 public enum CatalogTrustResult
 {
@@ -26,7 +26,7 @@ public static class CatalogTrust
     /// <summary>
     /// Base64-encoded Ed25519 public key embedded in the app.
     /// <para>This is the DEV key. The matching private key lives at
-    /// <c>~/.claude/projects/c--Users-Alexandr-flashlight-app/keys/catalog-key.priv</c>
+    /// <c>~/.claude/projects/c--Users-Alexandr-iskra/keys/catalog-key.priv</c>
     /// (outside the repo) and is used by the maintainer to sign
     /// <c>examples/catalog.json</c>. Rotate to a production key before factory deployment.</para>
     /// </summary>

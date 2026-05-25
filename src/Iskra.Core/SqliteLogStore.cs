@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Read DTO for the history view — a subset of the columns, with id and

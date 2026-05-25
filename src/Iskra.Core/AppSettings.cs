@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// User-facing app settings: catalog source, debugger/BMP knobs, log location.
@@ -57,11 +57,11 @@ public static class AppSettingsStore
     };
 
     /// <summary>
-    /// Default location: <c>%LOCALAPPDATA%\FlashlightApp\settings.json</c>.
+    /// Default location: <c>%LOCALAPPDATA%\Iskra\settings.json</c>.
     /// </summary>
     public static string DefaultPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "FlashlightApp",
+        "Iskra",
         "settings.json");
 
     public static AppSettings Load(string? path = null)

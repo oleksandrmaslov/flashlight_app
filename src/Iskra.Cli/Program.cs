@@ -1,5 +1,5 @@
 using System.Text;
-using FlashlightApp.Core;
+using Iskra.Core;
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -358,17 +358,17 @@ static int ListProbes()
 static void PrintUsage()
 {
     Console.WriteLine("""
-        FlashlightApp.Cli — масова прошивка через Black Magic Probe
+        Iskra.Cli — масова прошивка через Black Magic Probe
 
         Usage (caталог-driven, рекомендований режим для операторів):
-          FlashlightApp.Cli --catalog <path> --product <id>
+          Iskra.Cli --catalog <path> --product <id>
                             --operator <name> --batch <id>
                             [--firmware-version <ver>]   (інакше default release)
                             [--port <COMxx>]              (авто якщо один BMP)
                             [...]
 
         Usage (повний ручний режим — для розробки / без каталогу):
-          FlashlightApp.Cli --elf <path>
+          Iskra.Cli --elf <path>
                             --product <id> --target <bmp-match> --flash-kb <N>
                             --operator <name> --batch <id>
                             [--port <COMxx>]
@@ -379,8 +379,8 @@ static void PrintUsage()
                             [--gdb-path <path>] [--db-path <path>]
                             [--dry-run]
 
-          FlashlightApp.Cli --list-probes    показати підключені програматори
-          FlashlightApp.Cli --help           ця довідка
+          Iskra.Cli --list-probes    показати підключені програматори
+          Iskra.Cli --help           ця довідка
 
         Підпис каталогу (Sprint 2):
           [--require-signed-catalog]   обовʼязковий Ed25519-підпис .sig поруч

@@ -1,8 +1,8 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Data;
 using System.Windows;
 
-namespace FlashlightApp.Wpf;
+namespace Iskra.Wpf;
 
 /// <summary>
 /// Interaction logic for App.xaml

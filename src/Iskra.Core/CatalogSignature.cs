@@ -4,7 +4,7 @@ using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Signers;
 using Org.BouncyCastle.Security;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 /// <summary>
 /// Ed25519 sign / verify over raw catalog bytes. Pure crypto — no IO, no

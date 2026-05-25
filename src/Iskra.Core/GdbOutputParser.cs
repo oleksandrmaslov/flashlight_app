@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 public enum GdbEventKind
 {

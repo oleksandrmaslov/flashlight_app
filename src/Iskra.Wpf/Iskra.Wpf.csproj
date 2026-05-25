@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,11 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyName>FlashlightApp</AssemblyName>
+    <AssemblyName>Iskra</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FlashlightApp.Core\FlashlightApp.Core.csproj" />
+    <ProjectReference Include="..\Iskra.Core\Iskra.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

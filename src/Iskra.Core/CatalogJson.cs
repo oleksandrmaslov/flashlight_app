@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 public sealed class CatalogParseException : Exception
 {

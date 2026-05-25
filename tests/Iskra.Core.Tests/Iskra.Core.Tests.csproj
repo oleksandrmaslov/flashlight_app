@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\FlashlightApp.Core\FlashlightApp.Core.csproj" />
+    <ProjectReference Include="..\..\src\Iskra.Core\Iskra.Core.csproj" />
   </ItemGroup>
 
 </Project>

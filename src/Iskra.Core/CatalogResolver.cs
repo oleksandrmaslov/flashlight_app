@@ -1,4 +1,4 @@
-namespace FlashlightApp.Core;
+namespace Iskra.Core;
 
 public sealed record ResolveResult(
     bool Ok,
