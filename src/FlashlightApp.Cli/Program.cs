@@ -72,6 +72,15 @@ switch (ElfPreflight.Check(opts.ElfPath))
         return 4;
 }
 
+string? computedSha = null;
+bool hashVerified = false;
+bool hashWasRequired = FirmwareIntegrity.IsValidSha256Hex(opts.FirmwareSha256);
+if (hashWasRequired)
+{
+    computedSha = FirmwareIntegrity.ComputeSha256Hex(opts.ElfPath);
+    hashVerified = FirmwareIntegrity.HashesMatch(computedSha, opts.FirmwareSha256);
+}
+
 var gdbExe = GdbDiscovery.Find(opts.GdbPath);
 if (gdbExe is null)
 {
@@ -83,12 +92,74 @@ if (gdbExe is null)
 if (dryRun)
 {
     Console.WriteLine("=== DRY RUN — gdb не буде запущено ===");
+    if (hashWasRequired)
+    {
+        Console.WriteLine($"ELF SHA-256:     {computedSha}");
+        Console.WriteLine($"Каталог SHA-256: {opts.FirmwareSha256.ToLowerInvariant()}");
+        Console.WriteLine(hashVerified
+            ? "Перевірка цілісності: ✓ співпадає"
+            : "Перевірка цілісності: ✗ НЕ СПІВПАДАЄ — у реальному запуску буде відмова");
+    }
+    else
+    {
+        Console.WriteLine("Перевірка цілісності: пропущена (немає очікуваного SHA-256)");
+    }
     Console.WriteLine($"Виконуваний файл: {gdbExe}");
     var processArgs = GdbCommandBuilder.BuildProcessArgs(
         opts.Port, opts.Power, opts.BmpFrequencyHz, opts.ConnectUnderReset, opts.ElfPath);
     foreach (var a in processArgs)
         Console.WriteLine($"  {a}");
     return 0;
+}
+
+if (hashWasRequired && !hashVerified)
+{
+    var hashFail = new FlashOutcome(
+        Result:        FlashResult.Fail,
+        ErrorCode:     "E_FW_HASH_MISMATCH",
+        ErrorMessage:  $"computed {computedSha}, expected {opts.FirmwareSha256.ToLowerInvariant()}",
+        DetectedTarget: null,
+        Duration:      TimeSpan.Zero,
+        GdbTail:       string.Empty);
+
+    Console.WriteLine();
+    Console.WriteLine("============================================");
+    Console.WriteLine($"  ✗ ПОМИЛКА: {hashFail.ErrorCode}");
+    Console.WriteLine($"  {ErrorHints.For(hashFail.ErrorCode)}");
+    Console.WriteLine($"  Деталі: {hashFail.ErrorMessage}");
+    Console.WriteLine("============================================");
+
+    var dbPath0 = opts.DbPath ?? Path.Combine(Environment.CurrentDirectory, "flash_log.db");
+    try
+    {
+        using var log = new SqliteLogStore(dbPath0);
+        log.Append(new FlashAttemptRecord(
+            TsUtc:           DateTime.UtcNow,
+            Operator:        opts.Operator,
+            StationId:       opts.StationId,
+            BatchId:         opts.Batch,
+            ProductId:       opts.Product,
+            FirmwareVersion: opts.FirmwareVersion,
+            FirmwareSha256:  opts.FirmwareSha256,
+            TargetBmpMatch:  opts.TargetBmpMatch,
+            TargetDetected:  null,
+            TargetFlashKb:   opts.TargetFlashKb,
+            ComPort:         opts.Port,
+            ProbeSerial:     null,
+            Power:           opts.Power,
+            ConnectRst:      opts.ConnectUnderReset,
+            BmpFrequencyHz:  opts.BmpFrequencyHz,
+            Result:          hashFail.Result,
+            ErrorCode:       hashFail.ErrorCode,
+            ErrorMessage:    hashFail.ErrorMessage,
+            DurationMs:      0,
+            GdbTail:         null));
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"  УВАГА: не вдалося записати в журнал: {ex.Message}");
+    }
+    return 1;
 }
 
 var dbPath = opts.DbPath ?? Path.Combine(Environment.CurrentDirectory, "flash_log.db");
