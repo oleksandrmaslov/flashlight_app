@@ -97,12 +97,38 @@ Rotate to a production key before factory deployment:
 3. Re-sign the production `catalog.json` with the new private key.
 4. Store the production private key in an HSM / vault; never on the lab box.
 
-### Beyond Sprint 2
+### Sprint 4 — WPF UI (MVP done, more screens pending)
+
+User picked **Sprint 4 as MVP first, then Sprint 3**.
+
+Sprint 4 sub-plan:
+
+1. ✅ **MVP single-screen WPF** — `src/FlashlightApp.Wpf/`. One window: status
+   strip (port / gdb / catalog), operator + batch + product form, giant
+   PASS/FAIL banner, single "ПРОШИТИ ПЛАТУ" button, gdb output panel at
+   bottom. Wires to Core (catalog, integrity, state machine, log). Logs to
+   `%LOCALAPPDATA%\FlashlightApp\flash_log.db`. Catalog discovery looks in
+   `examples/catalog.json` next to the exe by default. Code-behind, no MVVM
+   framework — kept tight for MVP; refactor to MVVM if the UI grows.
+2. ⏳ **History screen** — TabControl tab listing recent attempts from
+   SQLite. Per-batch pass-rate summary. CSV export.
+3. ⏳ **Catalog browser screen** — shows the catalog: products, versions,
+   target descriptors, SHA-256s, signature status.
+4. ⏳ **Settings screen** — gdb path override, db path override, station id,
+   `require_signed_catalog` toggle, catalog path picker. Persisted in
+   `%LOCALAPPDATA%\FlashlightApp\settings.json`.
+5. ⏳ **Batch locking** — once a batch starts, firmware version is locked;
+   switching product mid-batch errors with a clear message.
+6. ⏳ **WiX installer** — single `.msi` that chains the ARM toolchain MSI,
+   drops `FlashlightApp.exe` + `catalog.json` + `catalog.json.sig` into
+   `%ProgramFiles%\FlashlightApp\`, adds Start Menu + Desktop shortcuts.
+
+### Beyond Sprint 4
 
 | Sprint | Deliverable |
 |---|---|
 | 3 | GitHub App + Device Flow auth, refresh token in DPAPI LocalMachine, private firmware download |
-| 4 | WPF UI (5 screens: Home / Flash / History / Catalog / Settings), batch locking, CSV export, WiX installer chaining ARM toolchain MSI |
+| 2.5 | Sideload-from-folder (`--sideload-dir`) — synthesises a catalog from `<id>_v<ver>_<part>.elf` + sidecar files |
 
 ### Polish backlog (fold in opportunistically)
 

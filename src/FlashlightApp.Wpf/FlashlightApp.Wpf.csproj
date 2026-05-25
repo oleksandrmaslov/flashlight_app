@@ -13,4 +13,16 @@
     <ProjectReference Include="..\FlashlightApp.Core\FlashlightApp.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ship the example catalog with the app so it can find one at startup. -->
+    <Content Include="..\..\examples\catalog.json">
+      <Link>examples\catalog.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\examples\catalog.json.sig">
+      <Link>examples\catalog.json.sig</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

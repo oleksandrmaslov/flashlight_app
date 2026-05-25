@@ -55,3 +55,10 @@ cache/
 
 # Vendored tools (filled by installer, not by source control)
 tools/gdb/
+
+# Firmware binaries — these come from the firmware repo's build output and
+# get bundled via the installer or sideload. Never committed to source.
+*.elf
+*.bin
+*.hex
+*.priv
