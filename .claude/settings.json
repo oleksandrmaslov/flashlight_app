@@ -10,7 +10,10 @@
       "PowerShell($env:PATH = \"$env:LOCALAPPDATA\\\\Microsoft\\\\dotnet;$env:PATH\"; dotnet build --nologo -v minimal | Out-Null; dotnet run --no-build --project src/FlashlightApp.Cli -- --list-probes)",
       "PowerShell($env:PATH = \"$env:LOCALAPPDATA\\\\Microsoft\\\\dotnet;$env:PATH\"; dotnet run --no-build --project src/FlashlightApp.Cli -- --elf c:\\\\Users\\\\Alexandr\\\\py32f0-template-project\\\\Build\\\\app.elf --product pocket-light --target PY32F002A --flash-kb 32 --operator Oleksandr --batch dry-001 --dry-run)",
       "Bash(ls \"C:\\\\Users\\\\IMT - Teilnehmer\\\\.claude\\\\projects\\\\c--Users-Alexandr-flashlight-app\\\\memory\\\\\" 2>/dev/null || echo \"memory dir empty or missing\")",
-      "Read(//c/Users/IMT - Teilnehmer/.claude/projects/c--Users-Alexandr-flashlight-app/memory\" 2>/dev/**)"
+      "Read(//c/Users/IMT - Teilnehmer/.claude/projects/c--Users-Alexandr-flashlight-app/memory\" 2>/dev/**)",
+      "PowerShell($env:PATH = \"$env:LOCALAPPDATA\\\\Microsoft\\\\dotnet;$env:PATH\"; dotnet run --no-build --project src/FlashlightApp.Cli -- --catalog examples/catalog.json --product pocket-light --operator Oleksandr --batch test-002 --dry-run)",
+      "PowerShell($env:PATH = \"$env:LOCALAPPDATA\\\\Microsoft\\\\dotnet;$env:PATH\"; dotnet build src/FlashlightApp.Cli --nologo -v minimal | Out-Null; dotnet run --no-build --project src/FlashlightApp.Cli -- --catalog examples/catalog.json --product pocket-light --operator Oleksandr --batch test-002 --dry-run)",
+      "PowerShell($env:PATH = \"$env:LOCALAPPDATA\\\\Microsoft\\\\dotnet;$env:PATH\"; dotnet run --no-build --project src/FlashlightApp.Cli -- --catalog examples/catalog.json --product pocket-light --elf c:\\\\Users\\\\Alexandr\\\\py32f0-template-project\\\\Build\\\\app.elf --operator Oleksandr --batch test-002 --dry-run)"
     ],
     "additionalDirectories": [
       "C:\\Users\\IMT - Teilnehmer\\.claude\\projects\\c--Users-Alexandr-flashlight-app"

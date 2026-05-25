@@ -12,6 +12,20 @@ if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
 if (args.Contains("--list-probes"))
     return ListProbes();
 
+var resolution = CatalogResolver.Resolve(args);
+if (!resolution.Ok)
+{
+    Console.Error.WriteLine($"Помилка каталогу: {resolution.Error}");
+    return 2;
+}
+args = resolution.ResolvedArgs!;
+if (resolution.Product is not null && resolution.Release is not null)
+{
+    var p = resolution.Product;
+    var r = resolution.Release;
+    Console.WriteLine($"Каталог: {p.ProductId} → v{r.Version} ({p.Target.BmpMatch}, {p.Target.FlashKb} KB)");
+}
+
 bool dryRun = args.Contains("--dry-run");
 args = args.Where(a => a != "--dry-run").ToArray();
 
@@ -178,27 +192,36 @@ static void PrintUsage()
     Console.WriteLine("""
         FlashlightApp.Cli — масова прошивка через Black Magic Probe
 
-        Usage:
+        Usage (caталог-driven, рекомендований режим для операторів):
+          FlashlightApp.Cli --catalog <path> --product <id>
+                            --operator <name> --batch <id>
+                            [--firmware-version <ver>]   (інакше default release)
+                            [--port <COMxx>]              (авто якщо один BMP)
+                            [...]
+
+        Usage (повний ручний режим — для розробки / без каталогу):
           FlashlightApp.Cli --elf <path>
                             --product <id> --target <bmp-match> --flash-kb <N>
                             --operator <name> --batch <id>
-                            [--port <COMxx>]            (авто-визначення якщо один BMP)
+                            [--port <COMxx>]
                             [--station-id <id>]
                             [--firmware-version <ver>] [--firmware-sha256 <hex>]
-                            [--power {probe|external}]
-                            [--freq <hz>]
+                            [--power {probe|external}] [--freq <hz>]
                             [--connect-reset]
-                            [--gdb-path <path-to-arm-none-eabi-gdb.exe>]
-                            [--db-path <flash_log.db>]
+                            [--gdb-path <path>] [--db-path <path>]
                             [--dry-run]
 
           FlashlightApp.Cli --list-probes    показати підключені програматори
           FlashlightApp.Cli --help           ця довідка
 
-        Required:
+        Каталог підставляє --target / --flash-kb / --firmware-version /
+        --firmware-sha256 / --elf якщо вони не вказані явно. Шлях до ELF
+        будується відносно директорії catalog-файлу.
+
+        Required без каталогу:
           --elf            Шлях до ELF-файлу прошивки
-          --product        ID продукту з каталогу (наприклад pocket-light)
-          --target         Очікувана підстрока target з swdp_scan (наприклад PY32F002A)
+          --product        ID продукту (наприклад pocket-light)
+          --target         Сімейство BMP (наприклад PY32Fxxx)
           --flash-kb       Розмір flash цільового MCU в KB
           --operator       Імʼя оператора
           --batch          ID партії
@@ -209,7 +232,7 @@ static void PrintUsage()
           --db-path ./flash_log.db
 
         Exit codes:
-          0 = PASS, 1 = FAIL, 2 = bad args / ambiguous probe,
+          0 = PASS, 1 = FAIL, 2 = bad args / ambiguous probe / catalog error,
           3 = no probe / gdb not found, 4 = bad ELF.
         """);
 }
