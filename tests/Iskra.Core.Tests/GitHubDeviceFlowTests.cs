@@ -229,9 +229,12 @@ public class GitHubDeviceFlowTests
     }
 
     [Fact]
-    public void GitHubAppConfig_is_unconfigured_until_client_id_set()
+    public void GitHubAppConfig_has_a_real_client_id()
     {
-        Assert.False(GitHubAppConfig.IsConfigured);
+        Assert.True(GitHubAppConfig.IsConfigured);
+        // GitHub App Client IDs all start with "Iv23li"; OAuth Apps start with
+        // "Ov23li". Catches accidental wiring to the wrong app type.
+        Assert.StartsWith("Iv23li", GitHubAppConfig.ClientId);
     }
 
     // --- helpers ---------------------------------------------------------
