@@ -10,6 +10,9 @@ if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
     return 0;
 }
 
+if (args.Contains("--doctor"))
+    return Doctor(args);
+
 if (args.Contains("--list-probes"))
     return ListProbes();
 
@@ -601,6 +604,204 @@ static int ListProbes()
     return 0;
 }
 
+static int Doctor(string[] args)
+{
+    var failures = 0;
+    var warnings = 0;
+
+    void Pass(string name, string detail = "") =>
+        WriteDoctorLine("PASS", name, detail);
+
+    void Warn(string name, string detail = "")
+    {
+        warnings++;
+        WriteDoctorLine("WARN", name, detail);
+    }
+
+    void Fail(string name, string detail = "")
+    {
+        failures++;
+        WriteDoctorLine("FAIL", name, detail);
+    }
+
+    Console.WriteLine("Перевірка станції Iskra");
+    Console.WriteLine("====================");
+
+    if (OperatingSystem.IsWindows())
+        Pass("Windows", Environment.OSVersion.VersionString);
+    else
+        Fail("Windows", "потрібна Windows 10/11");
+
+    var appDir = AppContext.BaseDirectory;
+    var appExe = Path.Combine(appDir, "Iskra.exe");
+    var cliExe = Environment.ProcessPath ?? Path.Combine(appDir, "Iskra.Cli.exe");
+
+    if (File.Exists(cliExe))
+        Pass("Iskra.Cli.exe", cliExe);
+    else
+        Warn("Iskra.Cli.exe", "не вдалося підтвердити шлях поточного exe");
+
+    if (File.Exists(appExe))
+        Pass("Iskra.exe", appExe);
+    else
+        Warn("Iskra.exe", "не поруч із CLI; після MSI має бути поруч");
+
+    var gdbPath = GdbDiscovery.Find(ArgValue(args, "--gdb-path"));
+    if (gdbPath is null)
+        Fail("Arm GNU Toolchain", "arm-none-eabi-gdb.exe не знайдено; повторно запустіть інсталятор Iskra");
+    else
+        Pass("Arm GNU Toolchain", gdbPath);
+
+    var probes = ProbeDiscovery.FindGdbPorts();
+    switch (probes.Count)
+    {
+        case 0:
+            Fail("Black Magic Probe", "GDB COM-порт не знайдено");
+            break;
+        case 1:
+            Pass("Black Magic Probe", $"{probes[0].PortName} {probes[0].FriendlyName}");
+            break;
+        default:
+            Warn("Black Magic Probe", $"знайдено {probes.Count} GDB COM-порти; виберіть порт явно");
+            foreach (var p in probes)
+                Console.WriteLine($"       {p.PortName} {p.FriendlyName}");
+            break;
+    }
+
+    var catalogPath = ArgValue(args, "--catalog") ?? FindDefaultCatalogPath();
+    if (catalogPath is null)
+    {
+        Warn("Catalog", "вкажіть --catalog <path> або встановіть вбудований examples/catalog.json");
+    }
+    else
+    {
+        if (!File.Exists(catalogPath))
+        {
+            Fail("Catalog", $"не знайдено: {catalogPath}");
+        }
+        else
+        {
+            try
+            {
+                var catalog = CatalogJson.ParseFile(catalogPath);
+                Pass("Catalog JSON", $"{catalog.Products.Count} продукт(ів): {catalogPath}");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CatalogParseException)
+            {
+                Fail("Catalog JSON", ex.Message);
+            }
+
+            var trust = CatalogTrust.VerifyCatalogFile(catalogPath, requireSigned: true);
+            switch (trust)
+            {
+                case CatalogTrustResult.Verified:
+                    Pass("Catalog signature", CatalogTrust.SignaturePathFor(catalogPath));
+                    break;
+                case CatalogTrustResult.UnsignedRejected:
+                    Fail("Catalog signature", "немає .sig файлу");
+                    break;
+                case CatalogTrustResult.BadSignature:
+                    Fail("Catalog signature", "підпис не збігається з вбудованим ключем");
+                    break;
+                case CatalogTrustResult.NoPublicKeyConfigured:
+                    Fail("Catalog signature", "немає вбудованого публічного ключа");
+                    break;
+                case CatalogTrustResult.IoError:
+                    Fail("Catalog signature", "не вдалося прочитати catalog або .sig файл");
+                    break;
+                case CatalogTrustResult.UnsignedAllowed:
+                    Fail("Catalog signature", "неочікуваний непідписаний catalog");
+                    break;
+            }
+        }
+    }
+
+    var localAppData = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Iskra");
+    if (CanWriteDirectory(localAppData, out var localError))
+        Pass("%LOCALAPPDATA%\\Iskra", "доступний для запису");
+    else
+        Fail("%LOCALAPPDATA%\\Iskra", localError ?? "немає доступу на запис");
+
+    var programData = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "Iskra");
+    if (CanWriteDirectory(programData, out var programDataError))
+        Pass("%PROGRAMDATA%\\Iskra", "доступний для запису");
+    else
+        Fail("%PROGRAMDATA%\\Iskra", programDataError ?? "немає доступу на запис");
+
+    var tokenStore = new TokenStore();
+    try
+    {
+        var tokens = tokenStore.Load();
+        if (tokens is null)
+            Warn("GitHub auth", "немає входу; виконайте Iskra.Cli --login перед завантаженням приватних прошивок");
+        else if (tokens.RefreshTokenIsExpired(DateTime.UtcNow))
+            Fail("GitHub auth", "refresh token застарів; виконайте Iskra.Cli --login");
+        else
+            Pass("GitHub auth", tokenStore.Path);
+    }
+    catch (Exception ex) when (ex is TokenStoreException or IOException or UnauthorizedAccessException)
+    {
+        Fail("GitHub auth", ex.Message);
+    }
+
+    Console.WriteLine();
+    if (failures == 0)
+    {
+        Console.WriteLine($"Результат: PASS, попереджень: {warnings}.");
+        return 0;
+    }
+
+    Console.WriteLine($"Результат: FAIL, помилок: {failures}, попереджень: {warnings}.");
+    return 1;
+}
+
+static void WriteDoctorLine(string status, string name, string detail)
+{
+    var line = $"[{status}] {name}";
+    if (!string.IsNullOrWhiteSpace(detail))
+        line += $" - {detail}";
+    Console.WriteLine(line);
+}
+
+static string? FindDefaultCatalogPath()
+{
+    var candidates = new[]
+    {
+        Path.Combine(AppContext.BaseDirectory, "examples", "catalog.json"),
+        Path.Combine(Environment.CurrentDirectory, "examples", "catalog.json"),
+        Path.Combine(Environment.CurrentDirectory, "catalog.json"),
+    };
+    return candidates.FirstOrDefault(File.Exists);
+}
+
+static string? ArgValue(string[] args, string name)
+{
+    var idx = Array.IndexOf(args, name);
+    return idx >= 0 && idx + 1 < args.Length ? args[idx + 1] : null;
+}
+
+static bool CanWriteDirectory(string dir, out string? error)
+{
+    try
+    {
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, $".iskra-write-test-{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(path, "test");
+        File.Delete(path);
+        error = null;
+        return true;
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        error = ex.Message;
+        return false;
+    }
+}
+
 static void PrintUsage()
 {
     Console.WriteLine("""
@@ -626,6 +827,7 @@ static void PrintUsage()
                             [--dry-run]
 
           Iskra.Cli --list-probes    показати підключені програматори
+          Iskra.Cli --doctor         перевірити готовність станції
           Iskra.Cli --help           ця довідка
 
         Авторизація GitHub (Sprint 3):

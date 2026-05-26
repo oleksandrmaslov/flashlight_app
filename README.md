@@ -42,6 +42,44 @@ Arm GNU Toolchain 15.2.rel1 and installs it before Iskra, so
 after setup. The sibling `Iskra-<ver>-x64.msi` is app-only and is kept as a
 build artifact for diagnostics/IT use.
 
+The build also emits `installer/out/Iskra-<ver>-preinstall-check.ps1`. Run it
+before setup on a new station:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\Iskra-1.2.3-preinstall-check.ps1
+```
+
+After setup, run:
+
+```powershell
+"C:\Program Files\Iskra\Iskra.Cli.exe" --doctor
+```
+
+### Station checklist
+
+Pre-install:
+
+- [ ] Windows 10/11 x64.
+- [ ] At least 3 GB free on the system drive.
+- [ ] Installer can run elevated as administrator.
+- [ ] `Iskra-<ver>-setup-x64.exe` is present.
+- [ ] Black Magic Probe is available for final station acceptance.
+- [ ] GitHub/network access is available if firmware comes from private GitHub releases.
+
+Installer installs:
+
+- [ ] Arm GNU Toolchain 15.2.rel1 (`arm-none-eabi-gdb.exe`).
+- [ ] Iskra WPF app and `Iskra.Cli.exe`.
+- [ ] Bundled `examples/catalog.json` and `examples/catalog.json.sig`.
+- [ ] Installed `check-station.ps1` for later diagnostics.
+
+Post-install acceptance:
+
+- [ ] `Iskra.Cli --doctor` reports no failures.
+- [ ] `Iskra.Cli --login` succeeds if private GitHub firmware is used.
+- [ ] The WPF status strip shows `gdb` found and one BMP GDB COM port.
+- [ ] A known-good board flashes once before handing the station to operators.
+
 ## Build
 
 ```powershell

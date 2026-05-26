@@ -136,7 +136,13 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
    builds `installer/out/Iskra-<ver>-setup-x64.exe`. The setup EXE chains
    the Arm toolchain MSI first (`EULA=1`) and then Iskra. Per-machine
    scope, installs to `C:\Program Files\Iskra\`, Start Menu shortcut,
-   examples/catalog.json + .sig bundled.
+   examples/catalog.json + .sig bundled. Build also copies
+   `installer/check-station.ps1` to
+   `installer/out/Iskra-<ver>-preinstall-check.ps1` and installs the same
+   script into `C:\Program Files\Iskra\`. `Iskra.Cli --doctor` is the
+   post-install readiness check: gdb, BMP COM port, catalog JSON/signature,
+   writable `%LOCALAPPDATA%\Iskra` / `%PROGRAMDATA%\Iskra`, and GitHub auth
+   state.
 
 ### Sprint 3 — done in code; live `--login` against the registered GitHub App is the only remaining gate
 

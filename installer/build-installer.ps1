@@ -13,6 +13,7 @@
 # Outputs:
 #   installer/out/Iskra-<ver>-x64.msi
 #   installer/out/Iskra-<ver>-setup-x64.exe
+#   installer/out/Iskra-<ver>-preinstall-check.ps1
 #
 # Requires:
 #   * .NET 8 SDK on PATH (or LOCALAPPDATA install; script handles both)
@@ -176,6 +177,8 @@ Write-Host "[4/7] wix build MSI -> installer/out/Iskra-$Version-x64.msi" -Foregr
 $outDir = Join-Path $PSScriptRoot "out"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $msiPath = Join-Path $outDir "Iskra-$Version-x64.msi"
+$preinstallCheckPath = Join-Path $outDir "Iskra-$Version-preinstall-check.ps1"
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot "check-station.ps1") -Destination $preinstallCheckPath -Force
 
 wix build `
     (Join-Path $PSScriptRoot "Product.wxs") `
@@ -209,4 +212,4 @@ if ($LASTEXITCODE -ne 0) { throw "wix bundle build failed (exit $LASTEXITCODE)" 
 
 Write-Host ""
 Write-Host "[OK] Built installer bundle and app MSI" -ForegroundColor Green
-Get-Item $bundlePath, $msiPath | Select-Object FullName, Length, LastWriteTime
+Get-Item $bundlePath, $msiPath, $preinstallCheckPath | Select-Object FullName, Length, LastWriteTime
