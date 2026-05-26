@@ -79,7 +79,7 @@ public partial class MainWindow : Window
         _catalogPath = null;
         _catalogDir = null;
         ProductCombo.Items.Clear();
-        VersionLabel.Text = "—";
+        VersionCombo.ItemsSource = null;
 
         var candidates = new List<string>();
         if (!string.IsNullOrEmpty(_settings.CatalogPath))

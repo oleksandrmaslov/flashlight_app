@@ -22,10 +22,10 @@
         {
           "version": "1.0.0",
           "elf_filename": "ci-clop_v1.0.0_PY32F002Ax5.elf",
-          "elf_sha256": "ci-clop_v1.0.0_PY32F002Ax5.elf.sha256",
+          "elf_sha256": "4514acf573a17487db6ccf52b9e4ef2840bf59c4d743789ee6715eaf5655f2cd",
           "elf_url": null,
           "released_at": "2026-05-26T12:00:00Z",
-          "notes": "Placeholder. Real SHA-256 will be set when the first signed release is cut from ci-clop-firmware.",
+          "notes": "Official release of CI-CLOP firmware. SHA-256 captured 2026-05-26.",
           "elf_source": {
             "repo": "oleksandrmaslov/ci-clop-firmware",
             "tag": "v1.0.0",
