@@ -39,9 +39,9 @@ pwsh ./installer/build-installer.ps1 -Version 1.2.3
 Use `installer/out/Iskra-<ver>-setup-x64.exe` on operator stations. It checks
 for Windows 10/11 x64, detects an existing `arm-none-eabi-gdb.exe`, and installs
 the embedded Arm GNU Toolchain 15.2.rel1 before Iskra when GDB is missing. The
-sibling `Iskra-<ver>-x64.msi` is app-only: it checks for Windows 10/11 x64 and
-blocks a fresh install if `arm-none-eabi-gdb.exe` is not already installed.
-Use the setup EXE for new factory PCs.
+sibling `Iskra-<ver>-x64.msi` is app-only: it uses an MSI-native x64 Windows
+compatibility check and blocks a fresh install if `arm-none-eabi-gdb.exe` is not
+already installed. Use the setup EXE for new factory PCs.
 
 The build also emits `installer/out/Iskra-<ver>-preinstall-check.ps1`. Run it
 before setup on a new station:

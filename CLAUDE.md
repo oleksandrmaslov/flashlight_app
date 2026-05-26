@@ -128,8 +128,9 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
    "Експорт CSV (партія)" and "Експорт CSV (все)" + SaveFileDialog.
 6. ✅ **WiX installer** — `installer/Product.wxs` builds the app MSI
    (WiX 5; UI extension pinned to 5.0.2). MSI codepage 1251 + language
-   1058 (Ukrainian). The MSI has launch conditions for Windows 10/11 x64
-   and existing `arm-none-eabi-gdb.exe`; use the setup EXE on fresh PCs.
+   1058 (Ukrainian). The MSI has launch conditions for MSI-native x64
+   Windows compatibility and existing `arm-none-eabi-gdb.exe`; use the setup
+   EXE on fresh PCs.
    `installer/Bundle.wxs` builds the factory setup EXE with
    `WixToolset.BootstrapperApplications.wixext/5.0.2` and
    `WixToolset.Util.wixext/5.0.2` prerequisite searches.

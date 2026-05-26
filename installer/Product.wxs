@@ -45,6 +45,8 @@
       </DirectorySearch>
     </Property>
 
+    <!-- MSI reports Windows 10/11 as VersionNT64=603/WindowsBuild=9600 in compatibility mode.
+         The setup EXE uses Burn's real Windows 10+ check; the MSI uses this native x64 gate. -->
     <Launch Condition="VersionNT64 &gt;= 603"
             Message="Потрібна Windows 10/11 x64. Встановлення Iskra зупинено." />
     <Launch Condition="Installed OR ARM_GDB_15_PATH OR ARM_GDB_LEGACY_ARM_15_PATH OR ARM_GDB_LEGACY_ARM_10_PATH OR ARM_GDB_LEGACY_GNU_10_PATH"
