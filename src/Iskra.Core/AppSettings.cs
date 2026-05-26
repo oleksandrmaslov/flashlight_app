@@ -15,6 +15,11 @@ public sealed class AppSettings
     public string? CatalogPath { get; set; }
     public bool RequireSignedCatalog { get; set; }
 
+    // Remote catalog auto-update (Sprint 3.5)
+    public bool CatalogAutoUpdate { get; set; } = true;
+    public string CatalogOwner { get; set; } = "oleksandrmaslov";
+    public string CatalogRepo  { get; set; } = "iskra-catalog";
+
     // Debugger / Black Magic Probe
     public string? GdbPath { get; set; }
     public int BmpFrequencyHz { get; set; } = 1_000_000;
@@ -34,6 +39,9 @@ public sealed class AppSettings
     {
         CatalogPath          = CatalogPath,
         RequireSignedCatalog = RequireSignedCatalog,
+        CatalogAutoUpdate    = CatalogAutoUpdate,
+        CatalogOwner         = CatalogOwner,
+        CatalogRepo          = CatalogRepo,
         GdbPath              = GdbPath,
         BmpFrequencyHz       = BmpFrequencyHz,
         Power                = Power,

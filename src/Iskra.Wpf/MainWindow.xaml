@@ -265,6 +265,39 @@
                                        Content="Відмовляти у роботі, якщо catalog.json не підписано Ed25519" />
                         </Grid>
 
+                        <!-- Auto-update catalog from iskra-catalog repo (Sprint 3.5) -->
+                        <TextBlock Text="Каталог GitHub (авто-оновлення)" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Авто-оновлення:" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <CheckBox  Grid.Row="0" Grid.Column="1" x:Name="SettingsCatalogAutoUpdate" Margin="0,8,0,4"
+                                       Content="Завантажувати свіжий каталог з iskra-catalog при запуску" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Власник:" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBox   Grid.Row="1" Grid.Column="1" x:Name="SettingsCatalogOwner" Margin="0,4,8,4" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Репозиторій:" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBox   Grid.Row="2" Grid.Column="1" x:Name="SettingsCatalogRepo" Margin="0,4,8,4" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Поточна версія:" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="CatalogCacheStatus"
+                                       VerticalAlignment="Center" Margin="0,4,8,4" Text="…" TextWrapping="Wrap" />
+                            <Button    Grid.Row="3" Grid.Column="2" x:Name="CatalogUpdateButton"
+                                       Content="Перевірити оновлення" Padding="14,4" Margin="0,4,0,4"
+                                       Click="CatalogUpdate_Click" />
+                        </Grid>
+
                         <!-- GitHub auth -->
                         <TextBlock Text="Авторизація GitHub" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
                         <Grid Margin="0,0,0,16">

@@ -43,6 +43,13 @@ public partial class MainWindow : Window
         LoadCatalog();
         RefreshHistory();
         RefreshAuthStatus();
+        RefreshCatalogCacheStatus();
+
+        // Sprint 3.5: kick off a non-blocking background fetch of the remote
+        // catalog. On success we cache to disk; user clicks "Перезавантажити"
+        // on the Catalog tab to pick up the new content mid-session.
+        if (_settings.CatalogAutoUpdate)
+            _ = BackgroundFetchCatalogAsync();
     }
 
     private void DiscoverGdb()
@@ -84,6 +91,13 @@ public partial class MainWindow : Window
         var candidates = new List<string>();
         if (!string.IsNullOrEmpty(_settings.CatalogPath))
             candidates.Add(_settings.CatalogPath);
+        // Sprint 3.5: auto-updated catalog cache. Wins over the bundled fallback
+        // but not over an explicit CatalogPath setting.
+        if (_settings.CatalogAutoUpdate)
+        {
+            var cached = Path.Combine(RemoteCatalogClient.DefaultCacheDir(), RemoteCatalogClient.CatalogFileName);
+            if (File.Exists(cached)) candidates.Add(cached);
+        }
         candidates.Add(Path.Combine(AppContext.BaseDirectory, "examples", "catalog.json"));
         candidates.Add(Path.Combine(AppContext.BaseDirectory, "catalog.json"));
         candidates.Add("examples/catalog.json");
@@ -575,6 +589,9 @@ public partial class MainWindow : Window
     {
         SettingsCatalogPath.Text   = _settings.CatalogPath ?? "";
         SettingsRequireSigned.IsChecked = _settings.RequireSignedCatalog;
+        SettingsCatalogAutoUpdate.IsChecked = _settings.CatalogAutoUpdate;
+        SettingsCatalogOwner.Text  = _settings.CatalogOwner;
+        SettingsCatalogRepo.Text   = _settings.CatalogRepo;
         SettingsGdbPath.Text       = _settings.GdbPath ?? "";
         SettingsBmpFreq.Text       = _settings.BmpFrequencyHz.ToString(CultureInfo.InvariantCulture);
         SettingsPowerExternal.IsChecked = _settings.Power == PowerMode.External;
@@ -591,6 +608,11 @@ public partial class MainWindow : Window
         {
             _settings.CatalogPath          = NullIfEmpty(SettingsCatalogPath.Text);
             _settings.RequireSignedCatalog = SettingsRequireSigned.IsChecked == true;
+            _settings.CatalogAutoUpdate    = SettingsCatalogAutoUpdate.IsChecked == true;
+            _settings.CatalogOwner         = string.IsNullOrWhiteSpace(SettingsCatalogOwner.Text)
+                                              ? "oleksandrmaslov" : SettingsCatalogOwner.Text.Trim();
+            _settings.CatalogRepo          = string.IsNullOrWhiteSpace(SettingsCatalogRepo.Text)
+                                              ? "iskra-catalog" : SettingsCatalogRepo.Text.Trim();
             _settings.GdbPath              = NullIfEmpty(SettingsGdbPath.Text);
             _settings.Power                = SettingsPowerProbe.IsChecked == true
                                               ? PowerMode.Probe : PowerMode.External;
@@ -887,5 +909,125 @@ public partial class MainWindow : Window
         var api = new GitHubReleaseAssetClient(http);
         var cache = new FirmwareCache(api, provider.GetFreshAccessTokenAsync);
         return await cache.GetOrDownloadAsync(release.ElfSource, release.ElfSha256);
+    }
+
+    // ============================================================
+    // Remote catalog auto-update (Sprint 3.5)
+    // ============================================================
+
+    private RemoteCatalogClient NewRemoteCatalogClient(HttpClient http) => new(
+        http,
+        owner: string.IsNullOrWhiteSpace(_settings.CatalogOwner) ? "oleksandrmaslov" : _settings.CatalogOwner,
+        repo:  string.IsNullOrWhiteSpace(_settings.CatalogRepo)  ? "iskra-catalog"   : _settings.CatalogRepo);
+
+    private void RefreshCatalogCacheStatus()
+    {
+        using var http = new HttpClient(); // never sent — just to construct the client
+        var client = NewRemoteCatalogClient(http);
+        var tag = client.CachedTag();
+        var cached = client.LoadCached();
+        if (tag is null && cached is null)
+        {
+            CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x66, 0x00));
+            CatalogCacheStatus.Text = "Кеш порожній — натисніть «Перевірити оновлення».";
+        }
+        else if (cached is null)
+        {
+            CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            CatalogCacheStatus.Text = $"✗ Кешований {tag}, але підпис не пройшов перевірку.";
+        }
+        else
+        {
+            CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x1B, 0x8A, 0x1B));
+            CatalogCacheStatus.Text = $"✓ {tag} · {cached.Products.Count} продукт(ів) · згенеровано {cached.GeneratedAt:yyyy-MM-dd HH:mm} UTC";
+        }
+    }
+
+    private async Task BackgroundFetchCatalogAsync()
+    {
+        try
+        {
+            using var http = new HttpClient();
+            var client = NewRemoteCatalogClient(http);
+            var r = await client.FetchAsync().ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                RefreshCatalogCacheStatus();
+                if (r.Status == RemoteCatalogStatus.Updated && r.ChangedFromCached)
+                {
+                    StatusCatalog.Text =
+                        $"Каталог: оновлено до {r.TagName} — натисніть «Перезавантажити» на вкладці Каталог.";
+                }
+            });
+        }
+        catch
+        {
+            // Background fetch failures must never crash the UI. Status is
+            // shown via the explicit refresh button.
+        }
+    }
+
+    private async void CatalogUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        CatalogUpdateButton.IsEnabled = false;
+        CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        CatalogCacheStatus.Text = "Перевірка…";
+
+        // Apply any pending owner/repo edits BEFORE the fetch so the user
+        // doesn't have to click Save first.
+        _settings.CatalogOwner = string.IsNullOrWhiteSpace(SettingsCatalogOwner.Text)
+            ? "oleksandrmaslov" : SettingsCatalogOwner.Text.Trim();
+        _settings.CatalogRepo  = string.IsNullOrWhiteSpace(SettingsCatalogRepo.Text)
+            ? "iskra-catalog" : SettingsCatalogRepo.Text.Trim();
+
+        try
+        {
+            using var http = new HttpClient();
+            var client = NewRemoteCatalogClient(http);
+            var r = await client.FetchAsync();
+
+            switch (r.Status)
+            {
+                case RemoteCatalogStatus.Updated:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x1B, 0x8A, 0x1B));
+                    CatalogCacheStatus.Text = r.ChangedFromCached
+                        ? $"✓ Оновлено до {r.TagName}. Перезавантажте каталог щоб застосувати."
+                        : $"✓ {r.TagName} (без змін з попередньої перевірки).";
+                    break;
+                case RemoteCatalogStatus.AlreadyUpToDate:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x1B, 0x8A, 0x1B));
+                    CatalogCacheStatus.Text = $"✓ Вже актуально: {r.TagName}.";
+                    break;
+                case RemoteCatalogStatus.NoRelease:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x66, 0x00));
+                    CatalogCacheStatus.Text = $"⚠ {_settings.CatalogOwner}/{_settings.CatalogRepo} поки що не має жодного релізу.";
+                    break;
+                case RemoteCatalogStatus.BadSignature:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+                    CatalogCacheStatus.Text = "✗ Підпис каталогу не співпадає з ключем у застосунку (можлива атака; кеш не змінено).";
+                    break;
+                case RemoteCatalogStatus.AssetsMissing:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+                    CatalogCacheStatus.Text = $"✗ Реліз без catalog.json або catalog.json.sig — {r.Message}";
+                    break;
+                case RemoteCatalogStatus.ParseError:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+                    CatalogCacheStatus.Text = $"✗ Завантажений каталог не вдалось розпарсити: {r.Message}";
+                    break;
+                default:
+                    CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+                    CatalogCacheStatus.Text = $"✗ Помилка: {r.Status} — {r.Message}";
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            CatalogCacheStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            CatalogCacheStatus.Text = $"✗ {ex.Message}";
+        }
+        finally
+        {
+            CatalogUpdateButton.IsEnabled = true;
+        }
     }
 }

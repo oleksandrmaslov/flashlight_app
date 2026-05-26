@@ -203,24 +203,69 @@ Open Sprint 3 item is end-to-end only, not code:
   hash and re-sign the catalog. That unblocks a real remote-download
   flash on the bench.
 
-### Sprint 3.5 — `firmware-catalog` repo + auto-discovery
+### Sprint 3.5 — done in code; live end-to-end with the registered repos is the only remaining gate
 
-Catalog production becomes automatic so new products / releases appear
-without anyone editing `catalog.json` by hand. **Trust root stays
-Ed25519-signed** — we automate the *production*, not the *trust*.
+Catalog production is now automatic. **Trust root stays Ed25519-signed** —
+we automate the *production*, not the *trust*. Renamed the catalog repo
+from the planned `firmware-catalog` to `iskra-catalog`, and switched the
+trigger from polling to GitHub's `repository_dispatch` events fired by
+each `*-firmware` repo on release publish.
 
-- New repo: `oleksandrmaslov/firmware-catalog` (public).
-- GitHub Actions workflow listens for `release.published` webhooks across
-  `*-firmware` repos under the account. On fire: reads the new release's
-  `target.json` sidecar, regenerates `catalog.json`, signs it with the
-  private key (GitHub Actions secret), publishes `catalog.json` +
-  `catalog.json.sig` as the latest release of `firmware-catalog`.
-- App polls `firmware-catalog`'s latest release on startup (anonymous;
-  catalog repo is public), downloads if newer, verifies signature,
-  hot-swaps. Operator sees "New firmware available for `ci-clop`
-  (v1.0.1)" banner; batch lock prevents accidental mid-batch swap.
-- Replaces ad-hoc manual signing for catalog releases. Sprint 3 work
-  still needed first because firmware downloads need GitHub auth.
+1. ✅ **Catalog generator** — [`CatalogGenerator`](src/Iskra.Core/CatalogGenerator.cs)
+   + [`TargetSidecar`](src/Iskra.Core/TargetSidecar.cs). Walks a tree of
+   `target.json` sidecars, aggregates by `(product_id, version)`, derives
+   `elf_filename` / `elf_source` from the firmware-side naming convention
+   (`<product>_v<X.Y.Z>_<part>.elf` from `<owner>/<product>-firmware`).
+   Picks `default_release` as the highest semver per product (prereleases
+   rank below their non-prerelease counterpart). CLI flag:
+   `Iskra.Cli --generate-catalog --from-targets <dir> --out <path> [--owner <owner>]`.
+2. ✅ **GitHub Actions workflows** — staged in
+   [.github/workflows-templates/](.github/workflows-templates/). Two YAMLs +
+   a setup README. `notify-iskra-catalog.yml` goes into each `*-firmware`
+   repo and POSTs `repository_dispatch` at iskra-catalog on every release
+   publish. `regenerate-catalog.yml` lives in iskra-catalog, lists all
+   `*-firmware` repos via `gh repo list`, downloads each release's
+   `target.json`, runs `Iskra.Cli --generate-catalog`, signs with
+   `CATALOG_PRIV_KEY` secret, publishes a `catalog-<timestamp>` release
+   with `catalog.json` + `catalog.json.sig` assets.
+3. ✅ **RemoteCatalogClient** — [`Iskra.Core/RemoteCatalogClient.cs`](src/Iskra.Core/RemoteCatalogClient.cs).
+   Anonymous GET on `https://api.github.com/repos/<owner>/iskra-catalog/releases/latest`,
+   downloads `catalog.json` + `.sig` assets via `browser_download_url`,
+   verifies signature against the embedded public key, atomically commits
+   to `%LOCALAPPDATA%\Iskra\catalog\latest.json` (+ `.sig` + `.tag`).
+   Refuses to write the cache if anything fails (network / bad signature /
+   parse error). Returns a `RemoteCatalogStatus` enum so callers can show
+   precise UX per failure mode.
+4. ✅ **Startup integration** — WPF `LoadCatalog` prepends the cached
+   remote catalog path to the candidates list when `CatalogAutoUpdate`
+   is on AND `CatalogPath` setting is empty. On every startup an
+   `_ = BackgroundFetchCatalogAsync()` is fired off; if the tag changes,
+   the status strip shows "Каталог: оновлено до catalog-XYZ — натисніть
+   Перезавантажити". `AppSettings` gained `CatalogAutoUpdate` (default
+   true), `CatalogOwner` (default `oleksandrmaslov`), `CatalogRepo`
+   (default `iskra-catalog`).
+5. ✅ **WPF "Перевірити оновлення"** — Settings tab gained a "Каталог
+   GitHub (авто-оновлення)" section: checkbox + owner/repo text fields +
+   current cached tag/status + a button that calls `FetchAsync` and maps
+   each `RemoteCatalogStatus` to a Ukrainian status line (green for
+   `Updated` / `AlreadyUpToDate`, amber for `NoRelease`, red for
+   `BadSignature` / `AssetsMissing` / `ParseError`).
+6. ✅ **CLI bundled into MSI** — `installer/Product.wxs` ships both
+   `Iskra.exe` (WPF) and `Iskra.Cli.exe` to `C:\Program Files\Iskra\`.
+   `installer/build-installer.ps1` publishes both as single-file
+   self-contained exes before the MSI build.
+
+Open Sprint 3.5 items are deployment-only, not code:
+
+- **Create the `oleksandrmaslov/iskra-catalog` public repo.**
+- **Add `CATALOG_PRIV_KEY` secret to iskra-catalog** with the base64 of
+  the existing dev `catalog-key.priv`.
+- **Drop `regenerate-catalog.yml` into iskra-catalog** (from
+  [.github/workflows-templates/](.github/workflows-templates/)).
+- **Per firmware repo:** drop in `notify-iskra-catalog.yml` and set the
+  `ISKRA_CATALOG_DISPATCH_TOKEN` PAT secret.
+- **First end-to-end run:** cut a real release in `ci-clop-firmware` and
+  watch iskra-catalog Actions regenerate the signed catalog within ~30 s.
 
 ### Beyond Sprint 3.5
 

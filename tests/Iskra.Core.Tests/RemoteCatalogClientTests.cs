@@ -141,20 +141,6 @@ public class RemoteCatalogClientTests : IDisposable
     }
 
     [Fact]
-    public async Task FetchAsync_returns_ParseError_when_catalog_is_corrupt()
-    {
-        // Use a catalog that's well-formed bytes but invalid JSON.
-        // The signature step happens first though, so we need the bytes to
-        // ALSO verify. Easiest path: sign garbage with the embedded key —
-        // but we don't have its private key. Skip this end-to-end and just
-        // assert that the file isn't committed if parse would fail (covered
-        // in unit tests of CatalogJson + a code review). For now we cover
-        // ParseError indirectly: confirm BadSignature path doesn't commit cache.
-        // (See Verify_does_not_commit_cache_when_bad_signature above.)
-        Assert.True(true);
-    }
-
-    [Fact]
     public async Task FetchAsync_uses_cached_catalog_when_tag_unchanged()
     {
         // Seed the cache with a tag file matching what the API will return.
@@ -185,13 +171,13 @@ public class RemoteCatalogClientTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadCached_returns_null_when_nothing_cached()
+    public void LoadCached_returns_null_when_nothing_cached()
     {
         Assert.Null(NewClient(new StubHandler()).LoadCached());
     }
 
     [Fact]
-    public async Task LoadCached_returns_null_when_signature_does_not_match_embedded_key()
+    public void LoadCached_returns_null_when_signature_does_not_match_embedded_key()
     {
         Directory.CreateDirectory(_cacheDir);
         var sig = CatalogSignature.Sign(SampleCatalogBytes, _kp.PrivateKey);
