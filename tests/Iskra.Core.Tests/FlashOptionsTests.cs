@@ -8,7 +8,7 @@ public class FlashOptionsTests
     {
         "--elf", @"C:\fw\test.elf",
         "--port", "COM30",
-        "--product", "pocket-light",
+        "--product", "ci-clop",
         "--operator", "Iryna",
         "--batch", "B-2026-001",
         "--target", "PY32F002A",
@@ -25,7 +25,7 @@ public class FlashOptionsTests
         Assert.Equal(PowerMode.External, o.Power);
         Assert.Equal(1_000_000, o.BmpFrequencyHz);
         Assert.False(o.ConnectUnderReset);
-        Assert.Equal("pocket-light", o.Product);
+        Assert.Equal("ci-clop", o.Product);
         Assert.Equal("PY32F002A", o.TargetBmpMatch);
         Assert.Equal(32, o.TargetFlashKb);
         Assert.Equal("unknown", o.FirmwareVersion);

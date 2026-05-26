@@ -604,7 +604,7 @@ static void PrintUsage()
 
         Required без каталогу:
           --elf            Шлях до ELF-файлу прошивки
-          --product        ID продукту (наприклад pocket-light)
+          --product        ID продукту (наприклад ci-clop)
           --target         Сімейство BMP (наприклад PY32Fxxx)
           --flash-kb       Розмір flash цільового MCU в KB
           --operator       Імʼя оператора

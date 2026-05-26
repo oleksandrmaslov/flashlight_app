@@ -102,7 +102,7 @@ public class GdbCommandBuilderTests
     {
         var args = GdbCommandBuilder.BuildProcessArgs(
             "COM30", PowerMode.External, 1_000_000, false,
-            elfPath: @"C:\fw\pocket-light_v1.0.0_PY32F002Ax5.elf").ToList();
+            elfPath: @"C:\fw\ci-clop_v1.0.0_PY32F002Ax5.elf").ToList();
 
         Assert.Equal("-nx", args[0]);
         Assert.Equal("--batch", args[1]);
@@ -114,7 +114,7 @@ public class GdbCommandBuilderTests
             Assert.False(args[i + 1].StartsWith('-'), $"expected command at index {i + 1}, got {args[i + 1]}");
         }
 
-        Assert.EndsWith("pocket-light_v1.0.0_PY32F002Ax5.elf", args[^1]);
+        Assert.EndsWith("ci-clop_v1.0.0_PY32F002Ax5.elf", args[^1]);
     }
 
     [Fact]

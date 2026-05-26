@@ -48,7 +48,7 @@ output (see `FlashStateMachineTests.Real_bmp_output_passes_classification`).
 
 Open Sprint 1 item is bench-time only, not code:
 
-- **50 PASS in a row** on the bench with one BMP + the pocket-light PY32 board.
+- **50 PASS in a row** on the bench with one BMP + the ci-clop PY32 board.
   This is the production-safety acceptance test. Run when convenient; failures
   will surface parser gaps the fixture tests can't predict.
 
@@ -183,7 +183,7 @@ Open Sprint 3 item is end-to-end only, not code:
 - **Real `--login` against the registered GitHub App** — confirms the
   Client ID works, the consent screen renders, the token round-trips
   through DPAPI cleanly, and `--whoami` shows the right login.
-- **First signed release of `pocket-light-firmware`** — once that release
+- **First signed release of `ci-clop-firmware`** — once that release
   is cut, replace the placeholder `0000…0001` SHA-256 in
   [examples/catalog.json:21](examples/catalog.json#L21) with the real
   hash and re-sign the catalog. That unblocks a real remote-download
@@ -203,7 +203,7 @@ Ed25519-signed** — we automate the *production*, not the *trust*.
   `catalog.json.sig` as the latest release of `firmware-catalog`.
 - App polls `firmware-catalog`'s latest release on startup (anonymous;
   catalog repo is public), downloads if newer, verifies signature,
-  hot-swaps. Operator sees "New firmware available for `pocket-light`
+  hot-swaps. Operator sees "New firmware available for `ci-clop`
   (v1.0.1)" banner; batch lock prevents accidental mid-batch swap.
 - Replaces ad-hoc manual signing for catalog releases. Sprint 3 work
   still needed first because firmware downloads need GitHub auth.
@@ -262,7 +262,7 @@ Ed25519-signed** — we automate the *production*, not the *trust*.
 - **UI language:** Ukrainian only. No i18n framework; strings hardcoded in
   WPF and CLI. Error codes (`E_*`) stay English / ASCII; the UI maps each
   to a Ukrainian hint line.
-- **MVP bench target:** `pocket-light` product, PY32F002Ax5 board. This is
+- **MVP bench target:** `ci-clop` product, PY32F002Ax5 board. This is
   the *acceptance test* for Sprint 1, NOT a hardcoded assumption in code.
 - **Operator identity:** free-text dropdown at app start, stored per-station.
 - **Trust root:** signed `catalog.json` (Ed25519, public key embedded in
@@ -393,7 +393,7 @@ echoes parsed values — it does not invoke gdb yet.
 
 ## Coordination with the firmware repo
 
-The app flashes firmware released from any product repo (`pocket-light-firmware`
+The app flashes firmware released from any product repo (`ci-clop-firmware`
 is the first) via GitHub Releases. Release asset naming convention:
 
 ```
@@ -403,7 +403,7 @@ target.json                              # one per release
 ```
 
 Examples:
-- `pocket-light_v1.0.0_PY32F002Ax5.elf`
+- `ci-clop_v1.0.0_PY32F002Ax5.elf`
 - `headlamp_v2.1.0_STM32F103C8.elf`
 
 `target.json` (uploaded as a release asset) declares the target stack so the
@@ -411,7 +411,7 @@ catalog generator and the app can verify firmware ↔ hardware pairing:
 
 ```json
 {
-  "product_id":   "pocket-light",
+  "product_id":   "ci-clop",
   "version":      "1.0.0",
   "part_number":  "PY32F002Ax5",
   "bmp_match":    "PY32F002A",
@@ -458,7 +458,7 @@ source of truth for what operators can flash.
 ### User profile (build context, not gossip)
 
 - Owns this app repo (`oleksandrmaslov/iskra`) and the firmware repo
-  (`oleksandrmaslov/pocket-light-firmware`).
+  (`oleksandrmaslov/ci-clop-firmware`).
 - Direct, action-oriented; prefers to be shown options and pick quickly.
 - Comfortable in C# / .NET though primary domain is embedded C.
 - Building for non-developer factory operators — keep that audience in mind

@@ -43,7 +43,7 @@ dotnet run --project src/Iskra.Cli -- `
   --power probe `
   --freq 1000000 `
   --connect-reset `
-  --product pocket-light `
+  --product ci-clop `
   --operator jdoe `
   --batch Lot-2026-05-25-A
 ```

@@ -11,7 +11,7 @@ public class SqliteLogStoreTests
             Operator:        "Iryna",
             StationId:       "BENCH-1",
             BatchId:         "B-2026-001",
-            ProductId:       "pocket-light",
+            ProductId:       "ci-clop",
             FirmwareVersion: "1.0.0",
             FirmwareSha256:  "abcdef",
             TargetBmpMatch:  "PY32F002A",

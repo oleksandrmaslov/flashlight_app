@@ -12,7 +12,7 @@ public class SqliteLogStoreQueryTests
             Operator:        "Iryna",
             StationId:       "BENCH-1",
             BatchId:         batchId,
-            ProductId:       "pocket-light",
+            ProductId:       "ci-clop",
             FirmwareVersion: "1.0.0",
             FirmwareSha256:  "0000000000000000000000000000000000000000000000000000000000000000",
             TargetBmpMatch:  "PY32Fxxx",
@@ -49,7 +49,7 @@ public class SqliteLogStoreQueryTests
         var row = store.QueryRecent().Single();
         Assert.Equal("FAIL",       row.Result);
         Assert.Equal("E_TIMEOUT",  row.ErrorCode);
-        Assert.Equal("pocket-light", row.ProductId);
+        Assert.Equal("ci-clop", row.ProductId);
         Assert.Equal("PY32Fxxx M0+", row.TargetDetected);
     }
 
@@ -82,11 +82,11 @@ public class SqliteLogStoreQueryTests
     public void GetBatchLock_returns_first_product_version_for_known_batch()
     {
         using var store = new SqliteLogStore(":memory:");
-        store.Append(Sample(batchId: "A") with { ProductId = "pocket-light", FirmwareVersion = "1.0.0" });
-        store.Append(Sample(batchId: "A") with { ProductId = "pocket-light", FirmwareVersion = "1.0.0" });
+        store.Append(Sample(batchId: "A") with { ProductId = "ci-clop", FirmwareVersion = "1.0.0" });
+        store.Append(Sample(batchId: "A") with { ProductId = "ci-clop", FirmwareVersion = "1.0.0" });
         var locked = store.GetBatchLock("A");
         Assert.NotNull(locked);
-        Assert.Equal("pocket-light", locked!.Value.ProductId);
+        Assert.Equal("ci-clop", locked!.Value.ProductId);
         Assert.Equal("1.0.0", locked.Value.FirmwareVersion);
     }
 
@@ -99,11 +99,11 @@ public class SqliteLogStoreQueryTests
         store.Append(Sample(batchId: "B", result: FlashResult.Fail, err: "E_BATCH_LOCKED")
             with { ProductId = "wrong-thing", FirmwareVersion = "9.9.9" });
         store.Append(Sample(batchId: "B")
-            with { ProductId = "pocket-light", FirmwareVersion = "1.0.0" });
+            with { ProductId = "ci-clop", FirmwareVersion = "1.0.0" });
 
         var locked = store.GetBatchLock("B");
         Assert.NotNull(locked);
-        Assert.Equal("pocket-light", locked!.Value.ProductId);
+        Assert.Equal("ci-clop", locked!.Value.ProductId);
         Assert.Equal("1.0.0", locked.Value.FirmwareVersion);
     }
 

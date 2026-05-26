@@ -56,7 +56,7 @@ public class CatalogJsonTests
     public void FindProduct_is_case_insensitive()
     {
         var c = CatalogJson.Parse(ValidJson);
-        Assert.NotNull(c.FindProduct("POCKET-LIGHT"));
+        Assert.NotNull(c.FindProduct("CI-CLOP"));
         Assert.NotNull(c.FindProduct("ci-clop"));
         Assert.Null(c.FindProduct("missing"));
     }
