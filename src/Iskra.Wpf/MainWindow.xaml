@@ -31,6 +31,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="220" />
                     </Grid.RowDefinitions>
 
@@ -71,12 +72,28 @@
                         </StackPanel>
                     </Border>
 
-                    <Button Grid.Row="2" x:Name="FlashButton" Content="ПРОШИТИ ПЛАТУ"
+                    <Border Grid.Row="2" x:Name="AuthHintBanner" Visibility="Collapsed"
+                            Background="#FFF3CD" BorderBrush="#FFEAA7" BorderThickness="1"
+                            CornerRadius="6" Margin="20,0,20,10" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" x:Name="AuthHintText" VerticalAlignment="Center"
+                                       FontSize="14" Foreground="#6B5A0E" TextWrapping="Wrap"
+                                       Text="Цей продукт потребує авторизації GitHub для завантаження прошивки." />
+                            <Button    Grid.Column="1" x:Name="AuthHintLoginButton" Content="Увійти"
+                                       Padding="14,6" Margin="12,0,0,0" Click="AuthHintLogin_Click" />
+                        </Grid>
+                    </Border>
+
+                    <Button Grid.Row="3" x:Name="FlashButton" Content="ПРОШИТИ ПЛАТУ"
                             FontSize="28" FontWeight="Bold" Height="76"
                             Margin="20,0,20,12" Click="FlashButton_Click"
                             Background="#0078D7" Foreground="White" BorderThickness="0" />
 
-                    <Grid Grid.Row="3" Margin="20,0,20,16">
+                    <Grid Grid.Row="4" Margin="20,0,20,16">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -244,6 +261,32 @@
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Обовʼязковий підпис:" VerticalAlignment="Center" Margin="0,4,8,4" />
                             <CheckBox  Grid.Row="1" Grid.Column="1" x:Name="SettingsRequireSigned" Margin="0,8,0,4"
                                        Content="Відмовляти у роботі, якщо catalog.json не підписано Ed25519" />
+                        </Grid>
+
+                        <!-- GitHub auth -->
+                        <TextBlock Text="Авторизація GitHub" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Стан:" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AuthStatusLabel"
+                                       VerticalAlignment="Center" Margin="0,4,8,4" Text="…" TextWrapping="Wrap" />
+                            <Button    Grid.Row="0" Grid.Column="2" x:Name="AuthRefreshButton"
+                                       Content="Оновити" Padding="10,4" Margin="0,4,0,4"
+                                       Click="AuthRefresh_Click" />
+
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,4">
+                                <Button x:Name="AuthLoginButton"  Content="Увійти" Padding="14,6" Margin="0,0,8,0" Click="AuthLogin_Click" />
+                                <Button x:Name="AuthLogoutButton" Content="Вийти"  Padding="14,6" Click="AuthLogout_Click" />
+                            </StackPanel>
                         </Grid>
 
                         <!-- Debugger / BMP -->

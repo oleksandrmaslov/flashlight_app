@@ -10,7 +10,7 @@ public class FirmwareCacheTests : IDisposable
 {
     private readonly string _root;
     private static readonly GitHubReleaseRef Src =
-        new("o/r", "v1.0.0", "pocket-light_v1.0.0_PY32F002Ax5.elf");
+        new("o/r", "v1.0.0", "ci-clop_v1.0.0_PY32F002Ax5.elf");
 
     public FirmwareCacheTests()
     {

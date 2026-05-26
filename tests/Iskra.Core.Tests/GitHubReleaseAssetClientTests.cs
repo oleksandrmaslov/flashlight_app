@@ -16,7 +16,7 @@ public class GitHubReleaseAssetClientTests
               "url":  "https://api.github.com/repos/o/r/releases/assets/111"
             },
             {
-              "name": "pocket-light_v1.0.0_PY32F002Ax5.elf",
+              "name": "ci-clop_v1.0.0_PY32F002Ax5.elf",
               "url":  "https://api.github.com/repos/o/r/releases/assets/222"
             }
           ]
@@ -35,7 +35,7 @@ public class GitHubReleaseAssetClientTests
     {
         var h = new StubHandler(JsonResp(ReleaseJsonWithAsset));
         var url = await NewClient(h).GetAssetDownloadUrlAsync(
-            "o/r", "v1.0.0", "pocket-light_v1.0.0_PY32F002Ax5.elf", "tok");
+            "o/r", "v1.0.0", "ci-clop_v1.0.0_PY32F002Ax5.elf", "tok");
 
         Assert.Equal("https://api.github.com/repos/o/r/releases/assets/222", url);
 

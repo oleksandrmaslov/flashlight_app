@@ -3,8 +3,8 @@
   "generated_at": "2026-05-26T12:00:00Z",
   "products": [
     {
-      "product_id": "pocket-light",
-      "display_name": "Pocket Light",
+      "product_id": "ci-clop",
+      "display_name": "CI-CLOP",
       "target": {
         "bmp_match": "PY32Fxxx",
         "part_number": "PY32F002Ax5",
@@ -21,15 +21,15 @@
         },
         {
           "version": "1.0.0",
-          "elf_filename": "pocket-light_v1.0.0_PY32F002Ax5.elf",
+          "elf_filename": "ci-clop_v1.0.0_PY32F002Ax5.elf",
           "elf_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
           "elf_url": null,
           "released_at": "2026-05-26T12:00:00Z",
-          "notes": "Placeholder. Real SHA-256 will be set when the first signed release is cut from pocket-light-firmware.",
+          "notes": "Placeholder. Real SHA-256 will be set when the first signed release is cut from ci-clop-firmware.",
           "elf_source": {
-            "repo": "oleksandrmaslov/pocket-light-firmware",
+            "repo": "oleksandrmaslov/ci-clop-firmware",
             "tag": "v1.0.0",
-            "asset": "pocket-light_v1.0.0_PY32F002Ax5.elf"
+            "asset": "ci-clop_v1.0.0_PY32F002Ax5.elf"
           }
         }
       ],

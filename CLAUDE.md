@@ -136,34 +136,58 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
    separately. Bundle/chain support is a follow-up (needs an Arm GNU
    Toolchain MSI URL or local file).
 
-### Sprint 3 — GitHub auth + private firmware download (in progress)
+### Sprint 3 — done in code; live `--login` against the registered GitHub App is the only remaining gate
 
-Active sprint. Six chunks:
+All six chunks landed. `GitHubAppConfig.ClientId` is set to the real GitHub
+App. Refresh-token rotation, DPAPI LocalMachine encryption, atomic cache
+writes, and the "re-hash on every cache hit" policy mean a compromised
+GitHub release cannot push bad firmware unless the attacker also forges
+the Ed25519 catalog signature.
 
-1. ✅ **Catalog schema bump for remote ELF refs** — new `GitHubReleaseRef`
-   record (`repo`, `tag`, `asset`); optional `elf_source` field on
-   `FirmwareRelease`; `IsRemote` helper. `CatalogResolver` returns a clear
-   "Sprint 3 chunks 2-4 not implemented yet" error when resolution lands on
-   a remote release without an explicit `--elf` override. Example catalog
-   gained a placeholder `v1.0.0` remote release; default still
-   `0.1.0-dev` (local) so HIL keeps working.
-2. ⏳ **GitHub Device Flow client** — `Iskra.Core/GitHubAuth.cs`. POST
-   `/login/device/code`, surface verification URL + user code, poll
-   `/login/oauth/access_token`. Needs the Client ID from the registered
-   GitHub App (user to provide).
-3. ⏳ **DPAPI LocalMachine token store** — `Iskra.Core/TokenStore.cs`.
-   `ProtectedData.Protect(..., DataProtectionScope.LocalMachine)`, write
-   to `%PROGRAMDATA%\Iskra\auth.bin`. Refresh tokens **rotate** on every
-   refresh — always overwrite, never append.
-4. ⏳ **Firmware downloader + cache** — `Iskra.Core/FirmwareCache.cs`.
-   Cache layout: `%LOCALAPPDATA%\Iskra\firmware-cache\<owner>_<repo>\<tag>\<asset>`.
-   On miss: GitHub API → asset download URL → stream to disk → SHA-256
-   verify against catalog. Mismatch ⇒ `E_FW_HASH_MISMATCH`, no gdb.
-5. ⏳ **CLI wiring** — `--login`, `--logout`, `--whoami`; resolver calls
-   `FirmwareCache.GetOrDownload` when `release.IsRemote`.
-6. ⏳ **WPF auth UI** — Settings tab "GitHub auth" section (Sign in /
-   Signed in as X / Sign out); flash-time banner if auth is missing or
-   the access token can't be refreshed.
+1. ✅ **Catalog schema bump for remote ELF refs** — `GitHubReleaseRef`
+   record + optional `elf_source` on `FirmwareRelease`; `IsRemote` helper.
+2. ✅ **GitHub Device Flow client** — [`Iskra.Core/GitHubAuth.cs`](src/Iskra.Core/GitHubAuth.cs).
+   `RequestDeviceCodeAsync` / `PollForTokenAsync` / `RefreshTokenAsync`.
+   Honors `slow_down` interval bump; surfaces `access_denied` /
+   `expired_token` as typed `GitHubAuthException.ErrorCode`.
+3. ✅ **DPAPI LocalMachine token store** — [`Iskra.Core/TokenStore.cs`](src/Iskra.Core/TokenStore.cs).
+   `%PROGRAMDATA%\Iskra\auth.bin`; atomic `.tmp` → `Move`; corrupted blob
+   throws `TokenStoreException` (caller deletes + re-auths).
+4. ✅ **Firmware downloader + cache** — [`Iskra.Core/FirmwareCache.cs`](src/Iskra.Core/FirmwareCache.cs)
+   at `%LOCALAPPDATA%\Iskra\firmware-cache\<owner>_<repo>\<tag>\<asset>`.
+   Re-hashes on every cache hit (catches catalog SHA updates AND on-disk
+   tampering). Hash mismatch on download deletes the tmp and throws.
+   Composed with [`AccessTokenProvider`](src/Iskra.Core/AccessTokenProvider.cs)
+   which loads stored tokens, refreshes-and-persists if stale (5 min
+   skew), deletes the blob if refresh is rejected.
+5. ✅ **CLI wiring** — `--login`, `--logout`, `--whoami` (the last calls
+   `GET /user` to show the GitHub login). `Iskra.Cli.csproj` bumped to
+   `net8.0-windows` since DPAPI is Windows-only. Exit code `5 = GitHub
+   auth / firmware download error`. Resolver no longer blocks on remote
+   releases — CLI calls `FirmwareCache.GetOrDownloadAsync` and injects
+   `--elf <cache-path>` before `FlashOptions.Parse`.
+6. ✅ **WPF auth UI** — Settings tab "Авторизація GitHub" section with
+   status line, Увійти / Вийти / Оновити buttons. New [`DeviceFlowDialog`](src/Iskra.Wpf/DeviceFlowDialog.xaml)
+   modal shows verification URL + huge user code + Copy / Open-in-browser
+   helpers, polls in background, closes on success. Flash tab has a
+   collapsed-by-default yellow hint banner that appears when the selected
+   release is remote AND we're not signed in. `FlashButton_Click` calls
+   `DownloadRemoteFirmwareAsync` before integrity check; maps
+   `NotSignedInException` / `RefreshTokenExpiredException` /
+   `GitHubAssetNotFoundException` / general download failure to new
+   error codes `E_NOT_SIGNED_IN` / `E_AUTH_EXPIRED` / `E_ASSET_NOT_FOUND`
+   / `E_FW_DOWNLOAD_FAILED` (each with Ukrainian hint in `ErrorHints.cs`).
+
+Open Sprint 3 item is end-to-end only, not code:
+
+- **Real `--login` against the registered GitHub App** — confirms the
+  Client ID works, the consent screen renders, the token round-trips
+  through DPAPI cleanly, and `--whoami` shows the right login.
+- **First signed release of `pocket-light-firmware`** — once that release
+  is cut, replace the placeholder `0000…0001` SHA-256 in
+  [examples/catalog.json:21](examples/catalog.json#L21) with the real
+  hash and re-sign the catalog. That unblocks a real remote-download
+  flash on the bench.
 
 ### Sprint 3.5 — `firmware-catalog` repo + auto-discovery
 

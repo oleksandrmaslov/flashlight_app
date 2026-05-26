@@ -10,8 +10,8 @@ public class CatalogJsonTests
           "generated_at": "2026-05-25T17:00:00Z",
           "products": [
             {
-              "product_id": "pocket-light",
-              "display_name": "Pocket Light",
+              "product_id": "ci-clop",
+              "display_name": "CI-CLOP",
               "target": {
                 "bmp_match": "PY32Fxxx",
                 "part_number": "PY32F002Ax5",
@@ -20,9 +20,9 @@ public class CatalogJsonTests
               "releases": [
                 {
                   "version": "1.0.0",
-                  "elf_filename": "pocket-light_v1.0.0_PY32F002Ax5.elf",
+                  "elf_filename": "ci-clop_v1.0.0_PY32F002Ax5.elf",
                   "elf_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                  "elf_url": "https://example/pocket-light_v1.0.0.elf",
+                  "elf_url": "https://example/ci-clop_v1.0.0.elf",
                   "released_at": "2026-05-20T12:00:00Z",
                   "notes": "Initial release"
                 }
@@ -40,8 +40,8 @@ public class CatalogJsonTests
         Assert.Equal(1, c.SchemaVersion);
         Assert.Single(c.Products);
         var p = c.Products[0];
-        Assert.Equal("pocket-light", p.ProductId);
-        Assert.Equal("Pocket Light", p.DisplayName);
+        Assert.Equal("ci-clop", p.ProductId);
+        Assert.Equal("CI-CLOP", p.DisplayName);
         Assert.Equal("PY32Fxxx", p.Target.BmpMatch);
         Assert.Equal("PY32F002Ax5", p.Target.PartNumber);
         Assert.Equal(32, p.Target.FlashKb);
@@ -57,7 +57,7 @@ public class CatalogJsonTests
     {
         var c = CatalogJson.Parse(ValidJson);
         Assert.NotNull(c.FindProduct("POCKET-LIGHT"));
-        Assert.NotNull(c.FindProduct("pocket-light"));
+        Assert.NotNull(c.FindProduct("ci-clop"));
         Assert.Null(c.FindProduct("missing"));
     }
 
@@ -167,21 +167,21 @@ public class CatalogJsonTests
           "generated_at": "2026-05-26T12:00:00Z",
           "products": [
             {
-              "product_id": "pocket-light",
-              "display_name": "Pocket Light",
+              "product_id": "ci-clop",
+              "display_name": "CI-CLOP",
               "target": { "bmp_match": "PY32Fxxx", "part_number": "PY32F002Ax5", "flash_kb": 32 },
               "releases": [
                 {
                   "version": "1.0.0",
-                  "elf_filename": "pocket-light_v1.0.0_PY32F002Ax5.elf",
+                  "elf_filename": "ci-clop_v1.0.0_PY32F002Ax5.elf",
                   "elf_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                   "elf_url": null,
                   "released_at": "2026-05-20T12:00:00Z",
                   "notes": null,
                   "elf_source": {
-                    "repo":  "oleksandrmaslov/pocket-light-firmware",
+                    "repo":  "oleksandrmaslov/ci-clop-firmware",
                     "tag":   "v1.0.0",
-                    "asset": "pocket-light_v1.0.0_PY32F002Ax5.elf"
+                    "asset": "ci-clop_v1.0.0_PY32F002Ax5.elf"
                   }
                 }
               ],
@@ -198,9 +198,9 @@ public class CatalogJsonTests
         var r = c.Products[0].Releases[0];
         Assert.NotNull(r.ElfSource);
         Assert.True(r.IsRemote);
-        Assert.Equal("oleksandrmaslov/pocket-light-firmware", r.ElfSource!.Repo);
+        Assert.Equal("oleksandrmaslov/ci-clop-firmware", r.ElfSource!.Repo);
         Assert.Equal("v1.0.0", r.ElfSource.Tag);
-        Assert.Equal("pocket-light_v1.0.0_PY32F002Ax5.elf", r.ElfSource.Asset);
+        Assert.Equal("ci-clop_v1.0.0_PY32F002Ax5.elf", r.ElfSource.Asset);
     }
 
     [Fact]
@@ -212,11 +212,11 @@ public class CatalogJsonTests
     }
 
     [Theory]
-    [InlineData("\"repo\":  \"oleksandrmaslov/pocket-light-firmware\"", "\"repo\":  \"\"",          "elf_source.repo missing")]
-    [InlineData("\"repo\":  \"oleksandrmaslov/pocket-light-firmware\"", "\"repo\":  \"not-a-slug\"", "must be 'owner/name'")]
-    [InlineData("\"repo\":  \"oleksandrmaslov/pocket-light-firmware\"", "\"repo\":  \"a/b/c\"",      "must be 'owner/name'")]
+    [InlineData("\"repo\":  \"oleksandrmaslov/ci-clop-firmware\"", "\"repo\":  \"\"",          "elf_source.repo missing")]
+    [InlineData("\"repo\":  \"oleksandrmaslov/ci-clop-firmware\"", "\"repo\":  \"not-a-slug\"", "must be 'owner/name'")]
+    [InlineData("\"repo\":  \"oleksandrmaslov/ci-clop-firmware\"", "\"repo\":  \"a/b/c\"",      "must be 'owner/name'")]
     [InlineData("\"tag\":   \"v1.0.0\"",                                 "\"tag\":   \"\"",          "elf_source.tag missing")]
-    [InlineData("\"asset\": \"pocket-light_v1.0.0_PY32F002Ax5.elf\"",    "\"asset\": \"\"",          "elf_source.asset missing")]
+    [InlineData("\"asset\": \"ci-clop_v1.0.0_PY32F002Ax5.elf\"",    "\"asset\": \"\"",          "elf_source.asset missing")]
     public void Malformed_elf_source_rejected(string find, string replace, string expectedInMsg)
     {
         var bad = RemoteSourceJson.Replace(find, replace);
@@ -238,6 +238,6 @@ public class CatalogJsonTests
         }
         Assert.NotNull(path);
         var c = CatalogJson.ParseFile(path!);
-        Assert.Contains(c.Products, p => p.ProductId == "pocket-light");
+        Assert.Contains(c.Products, p => p.ProductId == "ci-clop");
     }
 }

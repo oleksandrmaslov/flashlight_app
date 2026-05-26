@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -41,6 +42,7 @@ public partial class MainWindow : Window
         DiscoverProbe();
         LoadCatalog();
         RefreshHistory();
+        RefreshAuthStatus();
     }
 
     private void DiscoverGdb()
@@ -154,10 +156,13 @@ public partial class MainWindow : Window
         if (_catalog is null || ProductCombo.SelectedItem is not string id)
         {
             VersionLabel.Text = "—";
+            RefreshAuthBanner(null);
             return;
         }
         var product = _catalog.FindProduct(id);
-        VersionLabel.Text = product?.Default()?.Version is { } v ? v : "—";
+        var release = product?.Default();
+        VersionLabel.Text = release?.Version is { } v ? v : "—";
+        RefreshAuthBanner(release);
     }
 
     // ============================================================
@@ -211,21 +216,73 @@ public partial class MainWindow : Window
             // the normal flash flow surface the underlying error.
         }
 
-        var elfPath = Path.IsPathRooted(release.ElfFilename)
-            ? release.ElfFilename
-            : Path.Combine(_catalogDir!, release.ElfFilename);
-
-        if (!File.Exists(elfPath))
-        {
-            ShowFail("E_ELF_NOT_FOUND", $"ELF не знайдено: {elfPath}");
-            LogAttempt(op, batch, product, release, FlashResult.Fail,
-                "E_ELF_NOT_FOUND", elfPath, 0, null, null);
-            RefreshHistory();
-            return;
-        }
-
         FlashButton.IsEnabled = false;
         GdbOutput.Clear();
+
+        string elfPath;
+        if (release.IsRemote)
+        {
+            SetBannerNeutral("Завантаження прошивки з GitHub…", warning: false);
+            try
+            {
+                elfPath = await DownloadRemoteFirmwareAsync(release);
+            }
+            catch (NotSignedInException)
+            {
+                ShowFail("E_NOT_SIGNED_IN", "Відкрийте Налаштування → Авторизація GitHub → Увійти.");
+                LogAttempt(op, batch, product, release, FlashResult.Fail,
+                    "E_NOT_SIGNED_IN", "remote firmware requires GitHub sign-in", 0, null, null);
+                RefreshHistory();
+                FlashButton.IsEnabled = true;
+                RefreshAuthStatus();
+                return;
+            }
+            catch (RefreshTokenExpiredException)
+            {
+                ShowFail("E_AUTH_EXPIRED", "Сесію GitHub потрібно поновити (>6 міс без оновлення).");
+                LogAttempt(op, batch, product, release, FlashResult.Fail,
+                    "E_AUTH_EXPIRED", "github refresh token expired", 0, null, null);
+                RefreshHistory();
+                FlashButton.IsEnabled = true;
+                RefreshAuthStatus();
+                return;
+            }
+            catch (GitHubAssetNotFoundException ex)
+            {
+                ShowFail("E_ASSET_NOT_FOUND", ex.Message);
+                LogAttempt(op, batch, product, release, FlashResult.Fail,
+                    "E_ASSET_NOT_FOUND", ex.Message, 0, null, null);
+                RefreshHistory();
+                FlashButton.IsEnabled = true;
+                return;
+            }
+            catch (Exception ex)
+            {
+                ShowFail("E_FW_DOWNLOAD_FAILED", ex.Message);
+                LogAttempt(op, batch, product, release, FlashResult.Fail,
+                    "E_FW_DOWNLOAD_FAILED", ex.Message, 0, null, null);
+                RefreshHistory();
+                FlashButton.IsEnabled = true;
+                return;
+            }
+        }
+        else
+        {
+            elfPath = Path.IsPathRooted(release.ElfFilename)
+                ? release.ElfFilename
+                : Path.Combine(_catalogDir!, release.ElfFilename);
+
+            if (!File.Exists(elfPath))
+            {
+                ShowFail("E_ELF_NOT_FOUND", $"ELF не знайдено: {elfPath}");
+                LogAttempt(op, batch, product, release, FlashResult.Fail,
+                    "E_ELF_NOT_FOUND", elfPath, 0, null, null);
+                RefreshHistory();
+                FlashButton.IsEnabled = true;
+                return;
+            }
+        }
+
         SetBannerNeutral("Виконується…", warning: false);
 
         // Remember the operator + batch for next launch.
@@ -592,4 +649,225 @@ public partial class MainWindow : Window
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
     private static void Beep() => System.Media.SystemSounds.Beep.Play();
+
+    // ============================================================
+    // GitHub auth
+    // ============================================================
+
+    private static readonly TimeSpan AuthRefreshSkew = TimeSpan.FromMinutes(5);
+
+    private void RefreshAuthStatus()
+    {
+        var store = new TokenStore();
+        StoredTokens? stored;
+        try { stored = store.Load(); }
+        catch (TokenStoreException ex)
+        {
+            AuthStatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            AuthStatusLabel.Text = $"✗ Файл токенів пошкоджено: {ex.Message}";
+            AuthLoginButton.IsEnabled  = GitHubAppConfig.IsConfigured;
+            AuthLogoutButton.IsEnabled = true;
+            RefreshAuthBanner(CurrentSelectedRelease());
+            return;
+        }
+
+        if (!GitHubAppConfig.IsConfigured)
+        {
+            AuthStatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            AuthStatusLabel.Text = "✗ GitHub Client ID не налаштовано в збірці.";
+            AuthLoginButton.IsEnabled = false;
+            AuthLogoutButton.IsEnabled = stored is not null;
+            RefreshAuthBanner(CurrentSelectedRelease());
+            return;
+        }
+
+        if (stored is null)
+        {
+            AuthStatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x66, 0x00));
+            AuthStatusLabel.Text = "Не авторизовано.";
+            AuthLoginButton.IsEnabled = true;
+            AuthLogoutButton.IsEnabled = false;
+            RefreshAuthBanner(CurrentSelectedRelease());
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (stored.RefreshTokenIsExpired(now))
+        {
+            AuthStatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            AuthStatusLabel.Text = "✗ Сесія застаріла. Увійдіть знову.";
+            AuthLoginButton.IsEnabled = true;
+            AuthLogoutButton.IsEnabled = true;
+            RefreshAuthBanner(CurrentSelectedRelease());
+            return;
+        }
+
+        var freshAccess = stored.AccessTokenIsFresh(now, AuthRefreshSkew);
+        AuthStatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x1B, 0x8A, 0x1B));
+        AuthStatusLabel.Text =
+            $"✓ Авторизовано. Access {(freshAccess ? "дійсний" : "оновиться")} до {stored.AccessTokenExpiresAtUtc:yyyy-MM-dd HH:mm} UTC · " +
+            $"Refresh до {stored.RefreshTokenExpiresAtUtc:yyyy-MM-dd} UTC";
+        AuthLoginButton.IsEnabled = true;
+        AuthLogoutButton.IsEnabled = true;
+        RefreshAuthBanner(CurrentSelectedRelease());
+    }
+
+    private FirmwareRelease? CurrentSelectedRelease()
+    {
+        if (_catalog is null || ProductCombo.SelectedItem is not string id) return null;
+        return _catalog.FindProduct(id)?.Default();
+    }
+
+    private void RefreshAuthBanner(FirmwareRelease? release)
+    {
+        if (release is null || !release.IsRemote)
+        {
+            AuthHintBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var store = new TokenStore();
+        StoredTokens? stored;
+        try { stored = store.Load(); } catch (TokenStoreException) { stored = null; }
+
+        bool ok = stored is not null
+                  && !stored.RefreshTokenIsExpired(DateTime.UtcNow)
+                  && GitHubAppConfig.IsConfigured;
+
+        if (ok)
+        {
+            AuthHintBanner.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            AuthHintText.Text = !GitHubAppConfig.IsConfigured
+                ? "Цей продукт потребує завантаження з GitHub, але Client ID не налаштовано в збірці."
+                : (stored is null
+                    ? $"Прошивка «{release.Version}» завантажується з GitHub. Потрібен вхід."
+                    : "Сесія GitHub застаріла. Увійдіть знову для завантаження прошивки.");
+            AuthHintLoginButton.IsEnabled = GitHubAppConfig.IsConfigured;
+            AuthHintBanner.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void AuthLogin_Click(object sender, RoutedEventArgs e) => await DoLoginAsync();
+
+    private async void AuthHintLogin_Click(object sender, RoutedEventArgs e) => await DoLoginAsync();
+
+    private void AuthLogout_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            new TokenStore().Delete();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Не вдалося видалити токени: {ex.Message}",
+                "Iskra — вихід", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        RefreshAuthStatus();
+    }
+
+    private async void AuthRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshAuthStatus();
+        if (!GitHubAppConfig.IsConfigured) return;
+
+        var store = new TokenStore();
+        StoredTokens? stored;
+        try { stored = store.Load(); } catch { stored = null; }
+        if (stored is null) return;
+
+        AuthRefreshButton.IsEnabled = false;
+        try
+        {
+            using var http = new HttpClient();
+            var flow = new GitHubDeviceFlow(http, GitHubAppConfig.ClientId);
+            var provider = new AccessTokenProvider(store, flow);
+            await provider.GetFreshAccessTokenAsync();
+            RefreshAuthStatus();
+        }
+        catch (RefreshTokenExpiredException)
+        {
+            RefreshAuthStatus(); // store was deleted by provider
+        }
+        catch (Exception ex)
+        {
+            AuthStatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            AuthStatusLabel.Text = $"✗ Не вдалося перевірити: {ex.Message}";
+        }
+        finally
+        {
+            AuthRefreshButton.IsEnabled = true;
+        }
+    }
+
+    private async Task DoLoginAsync()
+    {
+        if (!GitHubAppConfig.IsConfigured)
+        {
+            MessageBox.Show(this,
+                "GitHub Client ID не налаштовано в збірці. Зверніться до розробника.",
+                "Iskra — вхід", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        AuthLoginButton.IsEnabled = false;
+        AuthHintLoginButton.IsEnabled = false;
+        try
+        {
+            using var http = new HttpClient();
+            var flow = new GitHubDeviceFlow(http, GitHubAppConfig.ClientId);
+            DeviceCodeResponse code;
+            try { code = await flow.RequestDeviceCodeAsync(); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Не вдалося запросити код пристрою: {ex.Message}",
+                    "Iskra — вхід", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var dlg = new DeviceFlowDialog(flow, code) { Owner = this };
+            var ok = dlg.ShowDialog();
+
+            if (ok != true)
+            {
+                if (!string.IsNullOrEmpty(dlg.ErrorMessage))
+                    MessageBox.Show(this, dlg.ErrorMessage, "Iskra — вхід",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                new TokenStore().Save(StoredTokens.From(dlg.Token!, DateTime.UtcNow));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    $"Не вдалося зберегти токени у %PROGRAMDATA%\\Iskra: {ex.Message}\n\n" +
+                    "Можливо, потрібно запустити програму від імені адміністратора (один раз).",
+                    "Iskra — вхід", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+        }
+        finally
+        {
+            RefreshAuthStatus();
+        }
+    }
+
+    private async Task<string> DownloadRemoteFirmwareAsync(FirmwareRelease release)
+    {
+        if (release.ElfSource is null)
+            throw new InvalidOperationException("release.ElfSource is null but IsRemote is true");
+
+        using var http = new HttpClient();
+        var flow = new GitHubDeviceFlow(http, GitHubAppConfig.ClientId);
+        var store = new TokenStore();
+        var provider = new AccessTokenProvider(store, flow);
+        var api = new GitHubReleaseAssetClient(http);
+        var cache = new FirmwareCache(api, provider.GetFreshAccessTokenAsync);
+        return await cache.GetOrDownloadAsync(release.ElfSource, release.ElfSha256);
+    }
 }
