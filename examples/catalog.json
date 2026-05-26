@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-25T17:00:00Z",
+  "generated_at": "2026-05-26T12:00:00Z",
   "products": [
     {
       "product_id": "pocket-light",
@@ -18,6 +18,19 @@
           "elf_url": null,
           "released_at": "2026-05-25T17:00:00Z",
           "notes": "Local dev build of py32f0-template-project. SHA-256 captured 2026-05-25."
+        },
+        {
+          "version": "1.0.0",
+          "elf_filename": "pocket-light_v1.0.0_PY32F002Ax5.elf",
+          "elf_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+          "elf_url": null,
+          "released_at": "2026-05-26T12:00:00Z",
+          "notes": "Placeholder. Real SHA-256 will be set when the first signed release is cut from pocket-light-firmware.",
+          "elf_source": {
+            "repo": "oleksandrmaslov/pocket-light-firmware",
+            "tag": "v1.0.0",
+            "asset": "pocket-light_v1.0.0_PY32F002Ax5.elf"
+          }
         }
       ],
       "default_release": "0.1.0-dev"

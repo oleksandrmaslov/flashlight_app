@@ -115,6 +115,32 @@ public static class CatalogJson
         if (r.ElfSha256.Length != 64 || !r.ElfSha256.All(IsHex))
             throw new CatalogParseException(
                 $"{productId} v{r.Version}: elf_sha256 must be 64 hex chars (got {r.ElfSha256.Length})");
+        if (r.ElfSource is not null) ValidateElfSource(productId, r.Version, r.ElfSource);
+    }
+
+    private static void ValidateElfSource(string productId, string version, GitHubReleaseRef src)
+    {
+        if (string.IsNullOrWhiteSpace(src.Repo))
+            throw new CatalogParseException(
+                $"{productId} v{version}: elf_source.repo missing");
+        if (!IsValidRepoSlug(src.Repo))
+            throw new CatalogParseException(
+                $"{productId} v{version}: elf_source.repo must be 'owner/name' (got '{src.Repo}')");
+        if (string.IsNullOrWhiteSpace(src.Tag))
+            throw new CatalogParseException(
+                $"{productId} v{version}: elf_source.tag missing");
+        if (string.IsNullOrWhiteSpace(src.Asset))
+            throw new CatalogParseException(
+                $"{productId} v{version}: elf_source.asset missing");
+    }
+
+    private static bool IsValidRepoSlug(string s)
+    {
+        int slash = s.IndexOf('/');
+        if (slash <= 0 || slash != s.LastIndexOf('/') || slash == s.Length - 1) return false;
+        foreach (var c in s)
+            if (!(char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or '/')) return false;
+        return true;
     }
 
     private static bool IsHex(char c) =>

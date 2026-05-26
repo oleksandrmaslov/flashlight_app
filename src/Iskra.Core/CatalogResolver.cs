@@ -69,16 +69,26 @@ public static class CatalogResolver
                 return ResolveResult.Failure($"{productId}: no default release");
         }
 
-        var elfPath = Path.IsPathRooted(release.ElfFilename)
-            ? release.ElfFilename
-            : Path.Combine(catalogDir, release.ElfFilename);
-
         var resolved = StripFlag(args, "--catalog").ToList();
         AddIfMissing(resolved, "--target",           product.Target.BmpMatch);
         AddIfMissing(resolved, "--flash-kb",         product.Target.FlashKb.ToString());
         AddIfMissing(resolved, "--firmware-version", release.Version);
         AddIfMissing(resolved, "--firmware-sha256",  release.ElfSha256);
-        AddIfMissing(resolved, "--elf",              elfPath);
+
+        var explicitElf = FindValue(args, "--elf") is not null;
+        if (!explicitElf)
+        {
+            if (release.IsRemote)
+                return ResolveResult.Failure(
+                    $"{productId} v{release.Version}: remote firmware download is not yet implemented " +
+                    "(Sprint 3 chunks 2-4). Pass --elf <path> explicitly to override.");
+
+            var elfPath = Path.IsPathRooted(release.ElfFilename)
+                ? release.ElfFilename
+                : Path.Combine(catalogDir, release.ElfFilename);
+            resolved.Add("--elf");
+            resolved.Add(elfPath);
+        }
         return ResolveResult.Success(resolved.ToArray(), product, release);
     }
 

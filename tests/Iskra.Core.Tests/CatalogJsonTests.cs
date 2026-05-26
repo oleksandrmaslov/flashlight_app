@@ -161,6 +161,69 @@ public class CatalogJsonTests
         Assert.IsType<System.Text.Json.JsonException>(ex.InnerException);
     }
 
+    private const string RemoteSourceJson = """
+        {
+          "schema_version": 1,
+          "generated_at": "2026-05-26T12:00:00Z",
+          "products": [
+            {
+              "product_id": "pocket-light",
+              "display_name": "Pocket Light",
+              "target": { "bmp_match": "PY32Fxxx", "part_number": "PY32F002Ax5", "flash_kb": 32 },
+              "releases": [
+                {
+                  "version": "1.0.0",
+                  "elf_filename": "pocket-light_v1.0.0_PY32F002Ax5.elf",
+                  "elf_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                  "elf_url": null,
+                  "released_at": "2026-05-20T12:00:00Z",
+                  "notes": null,
+                  "elf_source": {
+                    "repo":  "oleksandrmaslov/pocket-light-firmware",
+                    "tag":   "v1.0.0",
+                    "asset": "pocket-light_v1.0.0_PY32F002Ax5.elf"
+                  }
+                }
+              ],
+              "default_release": "1.0.0"
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void Parse_release_with_elf_source_populates_GitHubReleaseRef()
+    {
+        var c = CatalogJson.Parse(RemoteSourceJson);
+        var r = c.Products[0].Releases[0];
+        Assert.NotNull(r.ElfSource);
+        Assert.True(r.IsRemote);
+        Assert.Equal("oleksandrmaslov/pocket-light-firmware", r.ElfSource!.Repo);
+        Assert.Equal("v1.0.0", r.ElfSource.Tag);
+        Assert.Equal("pocket-light_v1.0.0_PY32F002Ax5.elf", r.ElfSource.Asset);
+    }
+
+    [Fact]
+    public void Release_without_elf_source_is_local()
+    {
+        var c = CatalogJson.Parse(ValidJson);
+        Assert.Null(c.Products[0].Releases[0].ElfSource);
+        Assert.False(c.Products[0].Releases[0].IsRemote);
+    }
+
+    [Theory]
+    [InlineData("\"repo\":  \"oleksandrmaslov/pocket-light-firmware\"", "\"repo\":  \"\"",          "elf_source.repo missing")]
+    [InlineData("\"repo\":  \"oleksandrmaslov/pocket-light-firmware\"", "\"repo\":  \"not-a-slug\"", "must be 'owner/name'")]
+    [InlineData("\"repo\":  \"oleksandrmaslov/pocket-light-firmware\"", "\"repo\":  \"a/b/c\"",      "must be 'owner/name'")]
+    [InlineData("\"tag\":   \"v1.0.0\"",                                 "\"tag\":   \"\"",          "elf_source.tag missing")]
+    [InlineData("\"asset\": \"pocket-light_v1.0.0_PY32F002Ax5.elf\"",    "\"asset\": \"\"",          "elf_source.asset missing")]
+    public void Malformed_elf_source_rejected(string find, string replace, string expectedInMsg)
+    {
+        var bad = RemoteSourceJson.Replace(find, replace);
+        var ex = Assert.Throws<CatalogParseException>(() => CatalogJson.Parse(bad));
+        Assert.Contains(expectedInMsg, ex.Message);
+    }
+
     [Fact]
     public void Example_catalog_in_repo_parses_clean()
     {

@@ -174,6 +174,45 @@ public class CatalogResolverTests
     }
 
     [Fact]
+    public void Remote_release_without_explicit_elf_fails_with_helpful_message()
+    {
+        var remote = new FirmwareRelease("2.0.0", "pocket-light_v2.0.0_PY32F002Ax5.elf",
+            "abcdef0000000000000000000000000000000000000000000000000000000002",
+            null, new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc), null,
+            new GitHubReleaseRef("oleksandrmaslov/pocket-light-firmware", "v2.0.0",
+                "pocket-light_v2.0.0_PY32F002Ax5.elf"));
+        var args = new[]
+        {
+            "--product", "pocket-light", "--firmware-version", "2.0.0",
+            "--operator", "x", "--batch", "y",
+        };
+        var r = CatalogResolver.ResolveWithCatalog(args, SampleCatalog(extraReleases: remote), @"C:\fw");
+        Assert.False(r.Ok);
+        Assert.Contains("remote firmware download is not yet implemented", r.Error);
+    }
+
+    [Fact]
+    public void Remote_release_with_explicit_elf_passes_through()
+    {
+        var remote = new FirmwareRelease("2.0.0", "pocket-light_v2.0.0_PY32F002Ax5.elf",
+            "abcdef0000000000000000000000000000000000000000000000000000000002",
+            null, new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc), null,
+            new GitHubReleaseRef("oleksandrmaslov/pocket-light-firmware", "v2.0.0",
+                "pocket-light_v2.0.0_PY32F002Ax5.elf"));
+        var args = new[]
+        {
+            "--product", "pocket-light", "--firmware-version", "2.0.0",
+            "--elf", @"D:\dev-build.elf",
+            "--operator", "x", "--batch", "y",
+        };
+        var r = CatalogResolver.ResolveWithCatalog(args, SampleCatalog(extraReleases: remote), @"C:\fw");
+        Assert.True(r.Ok);
+        Assert.Equal(@"D:\dev-build.elf", GetFlag(r.ResolvedArgs!, "--elf"));
+        Assert.Equal("abcdef0000000000000000000000000000000000000000000000000000000002",
+            GetFlag(r.ResolvedArgs!, "--firmware-sha256"));
+    }
+
+    [Fact]
     public void Resolved_args_round_trip_through_FlashOptions_Parse()
     {
         // Simulate the CLI flow: catalog resolves catalog-driven fields, then

@@ -23,7 +23,7 @@ transcript. This file is the *condensed* working copy of those decisions.
 
 ---
 
-## Status snapshot (2026-05-25)
+## Status snapshot (2026-05-26)
 
 ### Done
 
@@ -77,15 +77,17 @@ Open Sprint 1 item is bench-time only, not code:
 ### Dev catalog signing workflow
 
 The dev keypair lives **outside** the repo at
-`~/.claude/projects/c--Users-Alexandr-iskra/keys/catalog-key.{pub,priv}`.
-The public key matching it is embedded in
+`C:\Users\IMT - Teilnehmer\.claude\projects\c--Users-Alexandr-flashlight-app\keys\catalog-key.{pub,priv}`
+(the path still uses the pre-rename `flashlight-app` slug — moving the
+keys is a separate cleanup; embedded public key still matches).
+The public key is embedded in
 [`CatalogTrust.EmbeddedPublicKeyBase64`](src/Iskra.Core/CatalogTrust.cs).
 The private key is **never** committed.
 
 Re-sign `examples/catalog.json` after edits:
 
 ```powershell
-$priv = "C:\Users\IMT - Teilnehmer\.claude\projects\c--Users-Alexandr-iskra\keys\catalog-key.priv"
+$priv = "C:\Users\IMT - Teilnehmer\.claude\projects\c--Users-Alexandr-flashlight-app\keys\catalog-key.priv"
 dotnet run --project src/Iskra.Cli -- --sign-catalog examples/catalog.json --private-key $priv
 ```
 
@@ -134,12 +136,62 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
    separately. Bundle/chain support is a follow-up (needs an Arm GNU
    Toolchain MSI URL or local file).
 
-### Beyond Sprint 4
+### Sprint 3 — GitHub auth + private firmware download (in progress)
+
+Active sprint. Six chunks:
+
+1. ✅ **Catalog schema bump for remote ELF refs** — new `GitHubReleaseRef`
+   record (`repo`, `tag`, `asset`); optional `elf_source` field on
+   `FirmwareRelease`; `IsRemote` helper. `CatalogResolver` returns a clear
+   "Sprint 3 chunks 2-4 not implemented yet" error when resolution lands on
+   a remote release without an explicit `--elf` override. Example catalog
+   gained a placeholder `v1.0.0` remote release; default still
+   `0.1.0-dev` (local) so HIL keeps working.
+2. ⏳ **GitHub Device Flow client** — `Iskra.Core/GitHubAuth.cs`. POST
+   `/login/device/code`, surface verification URL + user code, poll
+   `/login/oauth/access_token`. Needs the Client ID from the registered
+   GitHub App (user to provide).
+3. ⏳ **DPAPI LocalMachine token store** — `Iskra.Core/TokenStore.cs`.
+   `ProtectedData.Protect(..., DataProtectionScope.LocalMachine)`, write
+   to `%PROGRAMDATA%\Iskra\auth.bin`. Refresh tokens **rotate** on every
+   refresh — always overwrite, never append.
+4. ⏳ **Firmware downloader + cache** — `Iskra.Core/FirmwareCache.cs`.
+   Cache layout: `%LOCALAPPDATA%\Iskra\firmware-cache\<owner>_<repo>\<tag>\<asset>`.
+   On miss: GitHub API → asset download URL → stream to disk → SHA-256
+   verify against catalog. Mismatch ⇒ `E_FW_HASH_MISMATCH`, no gdb.
+5. ⏳ **CLI wiring** — `--login`, `--logout`, `--whoami`; resolver calls
+   `FirmwareCache.GetOrDownload` when `release.IsRemote`.
+6. ⏳ **WPF auth UI** — Settings tab "GitHub auth" section (Sign in /
+   Signed in as X / Sign out); flash-time banner if auth is missing or
+   the access token can't be refreshed.
+
+### Sprint 3.5 — `firmware-catalog` repo + auto-discovery
+
+Catalog production becomes automatic so new products / releases appear
+without anyone editing `catalog.json` by hand. **Trust root stays
+Ed25519-signed** — we automate the *production*, not the *trust*.
+
+- New repo: `oleksandrmaslov/firmware-catalog` (public).
+- GitHub Actions workflow listens for `release.published` webhooks across
+  `*-firmware` repos under the account. On fire: reads the new release's
+  `target.json` sidecar, regenerates `catalog.json`, signs it with the
+  private key (GitHub Actions secret), publishes `catalog.json` +
+  `catalog.json.sig` as the latest release of `firmware-catalog`.
+- App polls `firmware-catalog`'s latest release on startup (anonymous;
+  catalog repo is public), downloads if newer, verifies signature,
+  hot-swaps. Operator sees "New firmware available for `pocket-light`
+  (v1.0.1)" banner; batch lock prevents accidental mid-batch swap.
+- Replaces ad-hoc manual signing for catalog releases. Sprint 3 work
+  still needed first because firmware downloads need GitHub auth.
+
+### Beyond Sprint 3.5
 
 | Sprint | Deliverable |
 |---|---|
-| 3 | GitHub App + Device Flow auth, refresh token in DPAPI LocalMachine, private firmware download |
 | 2.5 | Sideload-from-folder (`--sideload-dir`) — synthesises a catalog from `<id>_v<ver>_<part>.elf` + sidecar files |
+| 2.6 | Per-product flasher overrides — optional `frequency_hz` / `power_mode` / `connect_reset` / `timeout_s` in catalog `target` block; override global Settings at flash time |
+| 5 | Cloud DB mirror — keep local SQLite writes (offline-safe), batch-push to a central DB (likely Postgres/Supabase) when network is up. Schema mirrors `flash_attempts` + adds `station_id` index |
+| 6 | Auto-pick product by board ID — needs firmware cooperation (write a board-ID byte to a known flash offset OR use chip UID + a per-product mapping table). Reads via `monitor read_mem`; matches against catalog before flashing |
 
 ### Polish backlog (fold in opportunistically)
 
@@ -151,6 +203,13 @@ User picked **Sprint 4 as MVP first, then Sprint 3**.
   `probe_serial` column (currently always NULL).
 - **Auto-retry on `E_PROBE_BUSY`** — BMP occasionally fumbles a re-enumerate;
   one silent retry would smooth that out.
+- **`.hex` firmware support** — alongside ELF. Two viable paths: (a) let gdb
+  load Intel HEX directly via its BFD support (works for some targets but
+  flaky for bare-metal where ELF entry/section info is needed), or (b)
+  convert hex → elf at flash time via `arm-none-eabi-objcopy -I ihex -O
+  elf32-little`. Catalog schema would gain a `firmware_kind: "elf" | "hex"`
+  field per release; SHA-256 is computed over the on-disk firmware bytes
+  regardless of kind.
 
 ---
 
