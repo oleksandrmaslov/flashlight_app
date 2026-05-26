@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Iskra.Core;
 
 /// <summary>
@@ -36,6 +38,7 @@ public sealed record FirmwareRelease(
     GitHubReleaseRef? ElfSource = null)
 {
     /// <summary>True when this release must be downloaded from a remote source.</summary>
+    [JsonIgnore]
     public bool IsRemote => ElfSource is not null;
 }
 

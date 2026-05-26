@@ -19,6 +19,9 @@ if (args.Contains("--gen-keypair"))
 if (args.Contains("--sign-catalog"))
     return SignCatalog(args);
 
+if (args.Contains("--generate-catalog"))
+    return GenerateCatalog(args);
+
 if (args.Contains("--login"))
     return await LoginAsync();
 
@@ -340,6 +343,45 @@ static int GenKeypair(string[] args)
     Console.WriteLine();
     Console.WriteLine("Public key (base64) — paste into CatalogTrust.EmbeddedPublicKeyBase64:");
     Console.WriteLine(pubB64);
+    return 0;
+}
+
+static int GenerateCatalog(string[] args)
+{
+    int from = Array.IndexOf(args, "--from-targets");
+    if (from < 0 || from + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("--generate-catalog requires --from-targets <dir>");
+        return 2;
+    }
+    int outIdx = Array.IndexOf(args, "--out");
+    if (outIdx < 0 || outIdx + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("--generate-catalog requires --out <path>");
+        return 2;
+    }
+    int ownerIdx = Array.IndexOf(args, "--owner");
+    var owner = ownerIdx >= 0 && ownerIdx + 1 < args.Length ? args[ownerIdx + 1] : "oleksandrmaslov";
+
+    var targetsDir = args[from + 1];
+    var outPath    = args[outIdx + 1];
+
+    List<TargetSidecar> sidecars;
+    try { sidecars = CatalogGenerator.ReadTargetsTree(targetsDir); }
+    catch (CatalogGeneratorException ex) { Console.Error.WriteLine(ex.Message); return 2; }
+    catch (TargetSidecarException ex)    { Console.Error.WriteLine(ex.Message); return 2; }
+
+    Catalog catalog;
+    try { catalog = CatalogGenerator.Build(sidecars, owner, DateTime.UtcNow); }
+    catch (CatalogGeneratorException ex) { Console.Error.WriteLine(ex.Message); return 2; }
+    catch (CatalogParseException ex)     { Console.Error.WriteLine($"generated catalog failed validation: {ex.Message}"); return 2; }
+
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+    File.WriteAllBytes(outPath, CatalogJson.WriteUtf8(catalog));
+    Console.WriteLine($"generated → {outPath}");
+    Console.WriteLine($"  {catalog.Products.Count} product(s), {catalog.Products.Sum(p => p.Releases.Count)} release(s)");
+    foreach (var p in catalog.Products)
+        Console.WriteLine($"  · {p.ProductId} → default v{p.DefaultRelease} ({p.Releases.Count} release(s))");
     return 0;
 }
 
