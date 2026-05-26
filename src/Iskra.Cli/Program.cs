@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Text;
 using Iskra.Core;
 
@@ -17,6 +18,15 @@ if (args.Contains("--gen-keypair"))
 
 if (args.Contains("--sign-catalog"))
     return SignCatalog(args);
+
+if (args.Contains("--login"))
+    return await LoginAsync();
+
+if (args.Contains("--logout"))
+    return Logout();
+
+if (args.Contains("--whoami"))
+    return await WhoamiAsync();
 
 bool requireSigned = args.Contains("--require-signed-catalog");
 args = args.Where(a => a != "--require-signed-catalog").ToArray();
@@ -61,6 +71,46 @@ if (resolution.Product is not null && resolution.Release is not null)
     var p = resolution.Product;
     var r = resolution.Release;
     Console.WriteLine($"Каталог: {p.ProductId} → v{r.Version} ({p.Target.BmpMatch}, {p.Target.FlashKb} KB)");
+}
+
+// Remote release + no explicit --elf → download from GitHub release asset
+// into the local cache, verify SHA, then inject --elf with the cached path.
+if (resolution.Release?.IsRemote == true && !args.Contains("--elf"))
+{
+    var src = resolution.Release.ElfSource!;
+    var expectedSha = resolution.Release.ElfSha256;
+    Console.WriteLine($"GitHub: {src.Repo}@{src.Tag} → {src.Asset}");
+    try
+    {
+        var localPath = await FetchRemoteFirmwareAsync(src, expectedSha);
+        Console.WriteLine($"  ✓ кеш: {localPath}");
+        args = args.Concat(new[] { "--elf", localPath }).ToArray();
+    }
+    catch (NotSignedInException)
+    {
+        Console.Error.WriteLine("Помилка: потрібна авторизація GitHub. Виконайте: Iskra.Cli --login");
+        return 5;
+    }
+    catch (RefreshTokenExpiredException)
+    {
+        Console.Error.WriteLine("Помилка: сесія GitHub застаріла (>6 міс без оновлення). Виконайте: Iskra.Cli --login");
+        return 5;
+    }
+    catch (GitHubAssetNotFoundException ex)
+    {
+        Console.Error.WriteLine($"Помилка: реліз GitHub не містить файл — {ex.Message}");
+        return 5;
+    }
+    catch (GitHubApiException ex)
+    {
+        Console.Error.WriteLine($"Помилка GitHub API ({ex.StatusCode}): {ex.Message}");
+        return 5;
+    }
+    catch (FirmwareCacheException ex)
+    {
+        Console.Error.WriteLine($"Помилка завантаження прошивки: {ex.Message}");
+        return 5;
+    }
 }
 
 bool dryRun = args.Contains("--dry-run");
@@ -328,6 +378,160 @@ static int SignCatalog(string[] args)
     return 0;
 }
 
+static async Task<int> LoginAsync()
+{
+    if (!GitHubAppConfig.IsConfigured)
+    {
+        Console.Error.WriteLine("Помилка: GitHub App Client ID не налаштовано (зверніться до розробника).");
+        return 2;
+    }
+
+    using var http = new HttpClient();
+    var flow = new GitHubDeviceFlow(http, GitHubAppConfig.ClientId);
+
+    Console.WriteLine("Запит коду пристрою GitHub...");
+    DeviceCodeResponse code;
+    try { code = await flow.RequestDeviceCodeAsync(); }
+    catch (Exception ex) { Console.Error.WriteLine($"Помилка: {ex.Message}"); return 5; }
+
+    Console.WriteLine();
+    Console.WriteLine("============================================");
+    Console.WriteLine($"  Відкрийте у браузері: {code.VerificationUri}");
+    Console.WriteLine($"  Введіть код:          {code.UserCode}");
+    Console.WriteLine("============================================");
+    Console.WriteLine();
+    Console.WriteLine($"Очікування авторизації... (таймаут ~{code.ExpiresIn / 60} хв, Ctrl+C для скасування)");
+
+    TokenResponse token;
+    try { token = await flow.PollForTokenAsync(code); }
+    catch (GitHubAuthException ex) when (ex.ErrorCode == "access_denied")
+    {
+        Console.Error.WriteLine("Авторизацію відхилено користувачем."); return 5;
+    }
+    catch (GitHubAuthException ex) when (ex.ErrorCode == "expired_token")
+    {
+        Console.Error.WriteLine("Код пристрою застарів. Запустіть --login знову."); return 5;
+    }
+    catch (GitHubAuthException ex)
+    {
+        Console.Error.WriteLine($"Помилка GitHub: {ex.Message}"); return 5;
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("Скасовано."); return 5;
+    }
+
+    var store = new TokenStore();
+    try { store.Save(StoredTokens.From(token, DateTime.UtcNow)); }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Помилка збереження токенів у {store.Path}: {ex.Message}");
+        Console.Error.WriteLine("Запустіть від імені адміністратора, якщо проблема в правах доступу до %PROGRAMDATA%.");
+        return 5;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"✓ Авторизовано. Токени збережено: {store.Path}");
+    Console.WriteLine($"  Access token дійсний ~{token.ExpiresIn / 3600} год.");
+    Console.WriteLine($"  Refresh token дійсний ~{token.RefreshTokenExpiresIn / 86400} дн.");
+    return 0;
+}
+
+static int Logout()
+{
+    var store = new TokenStore();
+    if (!store.Exists())
+    {
+        Console.WriteLine("Токени не знайдено — вже не авторизовано.");
+        return 0;
+    }
+    try { store.Delete(); }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Помилка видалення {store.Path}: {ex.Message}");
+        return 5;
+    }
+    Console.WriteLine($"Токени видалено: {store.Path}");
+    return 0;
+}
+
+static async Task<int> WhoamiAsync()
+{
+    var store = new TokenStore();
+    StoredTokens? stored;
+    try { stored = store.Load(); }
+    catch (TokenStoreException ex)
+    {
+        Console.Error.WriteLine($"Файл токенів пошкоджено: {ex.Message}");
+        Console.Error.WriteLine("Видаліть і авторизуйтеся знову: Iskra.Cli --logout && Iskra.Cli --login");
+        return 5;
+    }
+
+    if (stored is null)
+    {
+        Console.WriteLine("Не авторизовано. Виконайте: Iskra.Cli --login");
+        return 5;
+    }
+
+    var now = DateTime.UtcNow;
+    Console.WriteLine($"Файл:              {store.Path}");
+    Console.WriteLine($"Access token до:   {stored.AccessTokenExpiresAtUtc:yyyy-MM-dd HH:mm} UTC ({FormatFutureDuration(stored.AccessTokenExpiresAtUtc - now)})");
+    Console.WriteLine($"Refresh token до:  {stored.RefreshTokenExpiresAtUtc:yyyy-MM-dd HH:mm} UTC ({FormatFutureDuration(stored.RefreshTokenExpiresAtUtc - now)})");
+
+    if (!GitHubAppConfig.IsConfigured)
+    {
+        Console.WriteLine("(пропускаю перевірку через GitHub — Client ID не налаштовано)");
+        return 0;
+    }
+
+    // Verify the access token still works server-side and show the login.
+    using var http = new HttpClient();
+    var flow = new GitHubDeviceFlow(http, GitHubAppConfig.ClientId);
+    var provider = new AccessTokenProvider(store, flow);
+    string accessToken;
+    try { accessToken = await provider.GetFreshAccessTokenAsync(); }
+    catch (NotSignedInException)        { Console.Error.WriteLine("(не авторизовано)");                return 5; }
+    catch (RefreshTokenExpiredException) { Console.Error.WriteLine("Refresh token застарів — --login"); return 5; }
+    catch (Exception ex)                 { Console.Error.WriteLine($"Не вдалося оновити токен: {ex.Message}"); return 5; }
+
+    using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+    req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+    req.Headers.UserAgent.ParseAdd("Iskra");
+    req.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
+    using var resp = await http.SendAsync(req);
+    if (!resp.IsSuccessStatusCode)
+    {
+        Console.Error.WriteLine($"GitHub /user → {(int)resp.StatusCode} {resp.ReasonPhrase}");
+        return 5;
+    }
+    var body = await resp.Content.ReadAsStringAsync();
+    using var doc = System.Text.Json.JsonDocument.Parse(body);
+    if (doc.RootElement.TryGetProperty("login", out var login))
+        Console.WriteLine($"GitHub користувач: {login.GetString()}");
+    return 0;
+}
+
+static async Task<string> FetchRemoteFirmwareAsync(GitHubReleaseRef src, string expectedSha)
+{
+    using var http = new HttpClient();
+    var flow = new GitHubDeviceFlow(http, GitHubAppConfig.ClientId);
+    var store = new TokenStore();
+    var provider = new AccessTokenProvider(store, flow);
+    var api = new GitHubReleaseAssetClient(http);
+    var cache = new FirmwareCache(api, provider.GetFreshAccessTokenAsync);
+    return await cache.GetOrDownloadAsync(src, expectedSha);
+}
+
+static string FormatFutureDuration(TimeSpan d)
+{
+    if (d.TotalSeconds <= 0) return "застарів";
+    if (d.TotalDays >= 30)   return $"через ~{(int)(d.TotalDays / 30)} міс";
+    if (d.TotalDays >= 1)    return $"через {d.Days} дн {d.Hours} год";
+    if (d.TotalHours >= 1)   return $"через {d.Hours} год {d.Minutes} хв";
+    return $"через {d.Minutes} хв";
+}
+
 static int ListProbes()
 {
     var all = ProbeDiscovery.FindAll();
@@ -382,6 +586,14 @@ static void PrintUsage()
           Iskra.Cli --list-probes    показати підключені програматори
           Iskra.Cli --help           ця довідка
 
+        Авторизація GitHub (Sprint 3):
+          Iskra.Cli --login          OAuth Device Flow: відкрити URL,
+                                     ввести код, дочекатися підтвердження.
+                                     Токени зберігаються зашифровано (DPAPI)
+                                     в %PROGRAMDATA%\Iskra\auth.bin.
+          Iskra.Cli --logout         видалити збережені токени.
+          Iskra.Cli --whoami         показати GitHub-користувача та строки дії.
+
         Підпис каталогу (Sprint 2):
           [--require-signed-catalog]   обовʼязковий Ed25519-підпис .sig поруч
                                        з catalog.json; інакше відмова.
@@ -405,6 +617,7 @@ static void PrintUsage()
 
         Exit codes:
           0 = PASS, 1 = FAIL, 2 = bad args / ambiguous probe / catalog error,
-          3 = no probe / gdb not found, 4 = bad ELF.
+          3 = no probe / gdb not found, 4 = bad ELF,
+          5 = GitHub auth / firmware download error.
         """);
 }

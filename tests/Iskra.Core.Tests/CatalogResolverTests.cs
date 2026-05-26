@@ -174,7 +174,7 @@ public class CatalogResolverTests
     }
 
     [Fact]
-    public void Remote_release_without_explicit_elf_fails_with_helpful_message()
+    public void Remote_release_without_explicit_elf_resolves_but_omits_elf_for_CLI_to_fetch()
     {
         var remote = new FirmwareRelease("2.0.0", "pocket-light_v2.0.0_PY32F002Ax5.elf",
             "abcdef0000000000000000000000000000000000000000000000000000000002",
@@ -187,8 +187,17 @@ public class CatalogResolverTests
             "--operator", "x", "--batch", "y",
         };
         var r = CatalogResolver.ResolveWithCatalog(args, SampleCatalog(extraReleases: remote), @"C:\fw");
-        Assert.False(r.Ok);
-        Assert.Contains("remote firmware download is not yet implemented", r.Error);
+
+        Assert.True(r.Ok);
+        Assert.True(r.Release!.IsRemote);
+        Assert.NotNull(r.Release.ElfSource);
+        // Other fields are filled normally so the CLI can do its preflight.
+        Assert.Equal("PY32Fxxx", GetFlag(r.ResolvedArgs!, "--target"));
+        Assert.Equal("2.0.0",    GetFlag(r.ResolvedArgs!, "--firmware-version"));
+        Assert.Equal("abcdef0000000000000000000000000000000000000000000000000000000002",
+            GetFlag(r.ResolvedArgs!, "--firmware-sha256"));
+        // --elf intentionally absent — CLI's FirmwareCache step injects it.
+        Assert.DoesNotContain("--elf", r.ResolvedArgs!);
     }
 
     [Fact]

@@ -76,19 +76,17 @@ public static class CatalogResolver
         AddIfMissing(resolved, "--firmware-sha256",  release.ElfSha256);
 
         var explicitElf = FindValue(args, "--elf") is not null;
-        if (!explicitElf)
+        if (!explicitElf && !release.IsRemote)
         {
-            if (release.IsRemote)
-                return ResolveResult.Failure(
-                    $"{productId} v{release.Version}: remote firmware download is not yet implemented " +
-                    "(Sprint 3 chunks 2-4). Pass --elf <path> explicitly to override.");
-
             var elfPath = Path.IsPathRooted(release.ElfFilename)
                 ? release.ElfFilename
                 : Path.Combine(catalogDir, release.ElfFilename);
             resolved.Add("--elf");
             resolved.Add(elfPath);
         }
+        // Remote releases without explicit --elf are left without --elf set;
+        // the CLI is expected to call FirmwareCache.GetOrDownloadAsync and
+        // inject --elf with the local cache path before FlashOptions.Parse.
         return ResolveResult.Success(resolved.ToArray(), product, release);
     }
 
