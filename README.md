@@ -36,11 +36,12 @@ Build the factory installer bundle:
 pwsh ./installer/build-installer.ps1 -Version 1.2.3
 ```
 
-Use `installer/out/Iskra-<ver>-setup-x64.exe` on operator stations. It embeds
-Arm GNU Toolchain 15.2.rel1 and installs it before Iskra, so
-`arm-none-eabi-gdb` is available for Black Magic Probe flashing immediately
-after setup. The sibling `Iskra-<ver>-x64.msi` is app-only and is kept as a
-build artifact for diagnostics/IT use.
+Use `installer/out/Iskra-<ver>-setup-x64.exe` on operator stations. It checks
+for Windows 10/11 x64, detects an existing `arm-none-eabi-gdb.exe`, and installs
+the embedded Arm GNU Toolchain 15.2.rel1 before Iskra when GDB is missing. The
+sibling `Iskra-<ver>-x64.msi` is app-only: it checks for Windows 10/11 x64 and
+blocks a fresh install if `arm-none-eabi-gdb.exe` is not already installed.
+Use the setup EXE for new factory PCs.
 
 The build also emits `installer/out/Iskra-<ver>-preinstall-check.ps1`. Run it
 before setup on a new station:
@@ -68,7 +69,9 @@ Pre-install:
 
 Installer installs:
 
-- [ ] Arm GNU Toolchain 15.2.rel1 (`arm-none-eabi-gdb.exe`).
+- [ ] Setup EXE: checks Windows 10/11 x64 before install.
+- [ ] Setup EXE: installs Arm GNU Toolchain 15.2.rel1 when `arm-none-eabi-gdb.exe` is missing.
+- [ ] MSI: blocks app install when `arm-none-eabi-gdb.exe` is missing.
 - [ ] Iskra WPF app and `Iskra.Cli.exe`.
 - [ ] Bundled `examples/catalog.json` and `examples/catalog.json.sig`.
 - [ ] Installed `check-station.ps1` for later diagnostics.

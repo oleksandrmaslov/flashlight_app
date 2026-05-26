@@ -8,7 +8,7 @@
 #   5. Remove large publish/bin intermediates unless -KeepPublishOutput is set.
 #   6. Download/cache the pinned Arm GNU Toolchain MSI if needed.
 #   7. Run wix to compile installer/Bundle.wxs into a single setup .exe
-#      that chains the Arm toolchain MSI and the Iskra MSI.
+#      that checks prerequisites, chains the Arm toolchain MSI, and the Iskra MSI.
 #
 # Outputs:
 #   installer/out/Iskra-<ver>-x64.msi
@@ -172,6 +172,7 @@ Write-Host "[3/7] WiX extensions (idempotent)" -ForegroundColor Cyan
 # into the v5 layout (warning WIX6101).
 Add-WixExtension "WixToolset.UI.wixext"
 Add-WixExtension "WixToolset.BootstrapperApplications.wixext"
+Add-WixExtension "WixToolset.Util.wixext"
 
 Write-Host "[4/7] wix build MSI -> installer/out/Iskra-$Version-x64.msi" -ForegroundColor Cyan
 $outDir = Join-Path $PSScriptRoot "out"
@@ -206,6 +207,7 @@ wix build `
     -d "IskraMsi=$msiPath" `
     -d "ArmToolchainMsi=$armToolchainMsi" `
     -ext WixToolset.BootstrapperApplications.wixext `
+    -ext WixToolset.Util.wixext `
     -arch x64 `
     -out $bundlePath | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "wix bundle build failed (exit $LASTEXITCODE)" }
