@@ -35,6 +35,7 @@ permissions:
 env:
   OWNER: oleksandrmaslov
   ISKRA_APP_REF: main        # branch/tag of iskra-app to use the generator from
+  FIRMWARE_REPOS: ci-clop-firmware
 
 jobs:
   rebuild:
@@ -64,11 +65,20 @@ jobs:
           FALLBACK_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          export GH_TOKEN="$(printf '%s' "${ISKRA_BOT_TOKEN:-$FALLBACK_GITHUB_TOKEN}" | tr -d '[:space:]')"
-          gh repo list "$OWNER" --limit 200 \
-              --json name,isArchived,visibility \
-              --jq '.[] | select(.isArchived == false) | select(.name | endswith("-firmware")) | .name' \
-              > repos.txt
+          export GH_TOKEN="$(printf '%s' "${ISKRA_BOT_TOKEN:-$FALLBACK_GITHUB_TOKEN}" | tr -cd 'A-Za-z0-9_')"
+          case "$GH_TOKEN" in
+            github_pat_*|ghp_*|gho_*|ghs_*|ghu_*) ;;
+            *) echo "::error::ISKRA_BOT_TOKEN is not a valid GitHub token value. Paste only the token itself, for example github_pat_..." >&2; exit 2 ;;
+          esac
+
+          if [ -n "${FIRMWARE_REPOS:-}" ]; then
+            printf '%s\n' $FIRMWARE_REPOS > repos.txt
+          else
+            gh repo list "$OWNER" --limit 200 \
+                --json name,isArchived,visibility \
+                --jq '.[] | select(.isArchived == false) | select(.name | endswith("-firmware")) | .name' \
+                > repos.txt
+          fi
           echo "Found $(wc -l < repos.txt) firmware repo(s):"
           cat repos.txt
           if [ ! -s repos.txt ]; then
@@ -82,7 +92,11 @@ jobs:
           FALLBACK_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          export GH_TOKEN="$(printf '%s' "${ISKRA_BOT_TOKEN:-$FALLBACK_GITHUB_TOKEN}" | tr -d '[:space:]')"
+          export GH_TOKEN="$(printf '%s' "${ISKRA_BOT_TOKEN:-$FALLBACK_GITHUB_TOKEN}" | tr -cd 'A-Za-z0-9_')"
+          case "$GH_TOKEN" in
+            github_pat_*|ghp_*|gho_*|ghs_*|ghu_*) ;;
+            *) echo "::error::ISKRA_BOT_TOKEN is not a valid GitHub token value. Paste only the token itself, for example github_pat_..." >&2; exit 2 ;;
+          esac
           mkdir -p targets
           while IFS= read -r repo; do
             [ -z "$repo" ] && continue
