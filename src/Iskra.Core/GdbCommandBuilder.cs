@@ -12,6 +12,38 @@ public static class GdbCommandBuilder
         int frequencyHz,
         bool connectUnderReset)
     {
+        var list = BuildPreambleCommands(comPort, power, frequencyHz, connectUnderReset);
+        list.Add("attach 1");
+        list.Add("load");
+        list.Add("compare-sections");
+        list.Add("kill");
+        list.Add("quit");
+        return list;
+    }
+
+    /// <summary>
+    /// Scan-only ex-commands: probe enumeration up to <c>swdp_scan</c>, then quit.
+    /// Used by the pre-flash scan phase to detect the target family without
+    /// touching flash. No <c>attach</c>, no <c>load</c>, no <c>compare-sections</c>,
+    /// and the caller must NOT pass an ELF path on the gdb command line.
+    /// </summary>
+    public static IReadOnlyList<string> BuildScanExCommands(
+        string comPort,
+        PowerMode power,
+        int frequencyHz,
+        bool connectUnderReset)
+    {
+        var list = BuildPreambleCommands(comPort, power, frequencyHz, connectUnderReset);
+        list.Add("quit");
+        return list;
+    }
+
+    private static List<string> BuildPreambleCommands(
+        string comPort,
+        PowerMode power,
+        int frequencyHz,
+        bool connectUnderReset)
+    {
         if (string.IsNullOrWhiteSpace(comPort))
             throw new ArgumentException("comPort required", nameof(comPort));
         if (frequencyHz <= 0)
@@ -34,11 +66,6 @@ public static class GdbCommandBuilder
             list.Add("monitor connect_rst enable");
 
         list.Add("monitor swdp_scan");
-        list.Add("attach 1");
-        list.Add("load");
-        list.Add("compare-sections");
-        list.Add("kill");
-        list.Add("quit");
         return list;
     }
 
@@ -62,6 +89,24 @@ public static class GdbCommandBuilder
             args.Add(ex);
         }
         args.Add(elfPath);
+        return args;
+    }
+
+    /// <summary>
+    /// Process args for the scan-only phase. No ELF path: scan never touches flash.
+    /// </summary>
+    public static IReadOnlyList<string> BuildScanProcessArgs(
+        string comPort,
+        PowerMode power,
+        int frequencyHz,
+        bool connectUnderReset)
+    {
+        var args = new List<string> { "-nx", "--batch" };
+        foreach (var ex in BuildScanExCommands(comPort, power, frequencyHz, connectUnderReset))
+        {
+            args.Add("-ex");
+            args.Add(ex);
+        }
         return args;
     }
 

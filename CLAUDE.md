@@ -331,10 +331,14 @@ Planned Sprint 6 deliverables:
 
 ### Polish backlog (fold in opportunistically)
 
-- **Two-phase gdb (scan-then-flash)** — today a target mismatch is detected
-  AFTER `load` because both happen in one gdb invocation. For factory safety
-  the scan should be a separate gdb call that aborts before touching flash if
-  the target doesn't match.
+- ✅ **Two-phase gdb (scan-then-flash)** — `FlashStateMachine.RunAsync` now
+  runs `gdb.RunScanAsync` (preamble → `swdp_scan` → quit; no ELF, no
+  `attach`, no `load`, no `compare-sections`) first; on probe error, no
+  targets, or `E_TARGET_MISMATCH` the flash phase is never spawned.
+  Only a clean scan proceeds to the canonical attach/load/verify
+  invocation. Scan phase has its own timeout (min(8s, total) ceiling).
+  Duration reported to logs is scan+flash wall-clock. Bench acceptance
+  (50-PASS row) still needs to be re-run since the gdb sequence changed.
 - **Probe serial capture** — read USB serial from registry to populate
   `probe_serial` column (currently always NULL).
 - **Auto-retry on `E_PROBE_BUSY`** — BMP occasionally fumbles a re-enumerate;

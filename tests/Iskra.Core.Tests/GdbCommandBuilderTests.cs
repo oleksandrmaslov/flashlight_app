@@ -124,4 +124,58 @@ public class GdbCommandBuilderTests
             GdbCommandBuilder.BuildProcessArgs(
                 "COM30", PowerMode.External, 1_000_000, false, elfPath: ""));
     }
+
+    [Fact]
+    public void BuildScanExCommands_stops_at_swdp_scan_no_attach_or_load()
+    {
+        var cmds = GdbCommandBuilder.BuildScanExCommands(
+            "COM30", PowerMode.External, 1_000_000, connectUnderReset: false);
+
+        Assert.Equal(new[]
+        {
+            "set confirm off",
+            "set pagination off",
+            @"target extended-remote \\.\COM30",
+            "monitor frequency 1000000",
+            "monitor swdp_scan",
+            "quit",
+        }, cmds);
+    }
+
+    [Fact]
+    public void BuildScanExCommands_must_not_emit_load_or_attach_or_compare()
+    {
+        // Factory safety: scan phase exists precisely so we never touch flash on
+        // a wrong-target-family board. If anyone adds load/attach back into the
+        // scan phase, this test fails loudly.
+        var cmds = GdbCommandBuilder.BuildScanExCommands(
+            "COM30", PowerMode.Probe, 1_000_000, connectUnderReset: true);
+        Assert.DoesNotContain("attach 1", cmds);
+        Assert.DoesNotContain("load", cmds);
+        Assert.DoesNotContain("compare-sections", cmds);
+        Assert.DoesNotContain("kill", cmds);
+    }
+
+    [Fact]
+    public void BuildScanExCommands_honors_probe_power_and_connect_reset()
+    {
+        var cmds = GdbCommandBuilder.BuildScanExCommands(
+            "COM30", PowerMode.Probe, 1_000_000, connectUnderReset: true).ToList();
+        Assert.Contains("monitor tpwr enable", cmds);
+        Assert.Contains("monitor connect_rst enable", cmds);
+        Assert.True(cmds.IndexOf("monitor tpwr enable") < cmds.IndexOf("monitor frequency 1000000"));
+        Assert.True(cmds.IndexOf("monitor connect_rst enable") < cmds.IndexOf("monitor swdp_scan"));
+    }
+
+    [Fact]
+    public void BuildScanProcessArgs_does_not_append_an_elf_path()
+    {
+        var args = GdbCommandBuilder.BuildScanProcessArgs(
+            "COM30", PowerMode.External, 1_000_000, false).ToList();
+        Assert.Equal("-nx", args[0]);
+        Assert.Equal("--batch", args[1]);
+        Assert.Equal("quit", args[^1]); // final ex-command, not a positional ELF
+        Assert.Equal("-ex", args[^2]);
+        Assert.DoesNotContain(args, a => a.EndsWith(".elf", StringComparison.OrdinalIgnoreCase));
+    }
 }

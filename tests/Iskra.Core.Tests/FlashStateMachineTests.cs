@@ -217,4 +217,86 @@ public class FlashStateMachineTests
         Assert.Equal(6, events.Count(e => e.Kind == GdbEventKind.LoadingSection));
         Assert.Equal(6, events.Count(e => e.Kind == GdbEventKind.SectionMatched));
     }
+
+    // Scan-phase classification: ClassifyScan returns null on a clean scan and a
+    // FAIL outcome on any condition that should abort before flash.
+
+    private static readonly string[] ScanOnlyHappy = new[]
+    {
+        "Remote debugging using \\\\.\\COM30",
+        "Available Targets:",
+        "No. Att Driver",
+        " 1      PY32Fxxx M0+",
+        "",
+    };
+
+    [Fact]
+    public void ClassifyScan_returns_null_on_matching_target()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(Run(ScanOnlyHappy), "PY32Fxxx");
+        Assert.Null(outcome);
+    }
+
+    [Fact]
+    public void ClassifyScan_returns_null_when_expected_match_empty()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(Run(ScanOnlyHappy), "");
+        Assert.Null(outcome);
+    }
+
+    [Fact]
+    public void ClassifyScan_fails_on_target_mismatch_before_any_flash_write()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(Run(new[]
+        {
+            "Available Targets:",
+            "No. Att Driver",
+            " 1      STM32F103",
+            "",
+        }), "PY32Fxxx");
+        Assert.NotNull(outcome);
+        Assert.Equal("E_TARGET_MISMATCH", outcome!.ErrorCode);
+        Assert.Equal("STM32F103", outcome.DetectedTarget);
+    }
+
+    [Fact]
+    public void ClassifyScan_fails_on_empty_target_list()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(Run(new[]
+        {
+            "Available Targets:",
+            "No. Att Driver",
+            "",
+        }), "PY32Fxxx");
+        Assert.NotNull(outcome);
+        Assert.Equal("E_SCAN_NO_TARGET", outcome!.ErrorCode);
+    }
+
+    [Fact]
+    public void ClassifyScan_fails_on_usb_error()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(
+            Run(new[] { "libusb_open failed" }, exitCode: 1), "PY32Fxxx");
+        Assert.NotNull(outcome);
+        Assert.Equal("E_PROBE_NOT_FOUND", outcome!.ErrorCode);
+    }
+
+    [Fact]
+    public void ClassifyScan_fails_on_probe_busy()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(
+            Run(new[] { "Access is denied." }, exitCode: 1), "PY32Fxxx");
+        Assert.NotNull(outcome);
+        Assert.Equal("E_PROBE_BUSY", outcome!.ErrorCode);
+    }
+
+    [Fact]
+    public void ClassifyScan_fails_on_timeout()
+    {
+        var outcome = FlashStateMachine.ClassifyScan(
+            Run(ScanOnlyHappy, exitCode: -1, timedOut: true, duration: TimeSpan.FromSeconds(8)),
+            "PY32Fxxx");
+        Assert.NotNull(outcome);
+        Assert.Equal("E_TIMEOUT", outcome!.ErrorCode);
+    }
 }

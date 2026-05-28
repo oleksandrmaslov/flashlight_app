@@ -127,4 +127,23 @@ public sealed class GdbProcess
             comPort, power, frequencyHz, connectUnderReset, elfPath);
         return RunAsync(args, timeout, onLine, ct);
     }
+
+    /// <summary>
+    /// Scan-only phase: connect, set probe options, run <c>swdp_scan</c>, quit.
+    /// Does not touch flash on the target. Used before <see cref="RunFlashAsync"/>
+    /// to abort safely on wrong-target-family boards.
+    /// </summary>
+    public Task<GdbRunResult> RunScanAsync(
+        string comPort,
+        PowerMode power,
+        int frequencyHz,
+        bool connectUnderReset,
+        TimeSpan timeout,
+        Action<GdbLine>? onLine = null,
+        CancellationToken ct = default)
+    {
+        var args = GdbCommandBuilder.BuildScanProcessArgs(
+            comPort, power, frequencyHz, connectUnderReset);
+        return RunAsync(args, timeout, onLine, ct);
+    }
 }
