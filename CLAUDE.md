@@ -23,7 +23,7 @@ transcript. This file is the *condensed* working copy of those decisions.
 
 ---
 
-## Status snapshot (2026-05-26)
+## Status snapshot (2026-05-29)
 
 ### Done
 
@@ -349,13 +349,98 @@ cause a station to flash bad firmware — the attacker would also need:
      widen the trust boundary because catalog source / public key /
      allowlist are all compiled into the app.
 
+### Sprint 5 — done in code; register GitHub App + distribute .pem are owner-action
+
+Cloud log mirror via a private `iskra-logs` GitHub repo. Local SQLite stays
+the source of truth (offline-safe); rows ship to GitHub as per-station
+per-UTC-day JSONL via the Contents API. A scheduled Action in iskra-logs
+rebuilds a queryable `logs.db` (SQLite) from the JSONL — that's the "SQL
+table" for maintainers: `git clone iskra-logs && sqlite3 logs.db ...`.
+
+Trust model: stations hold a write-only GitHub App private key scoped to
+iskra-logs only. Worst-case blast radius of a compromised station is
+"write garbage into iskra-logs" — catalog / firmware trust roots are
+untouched.
+
+1. ✅ **`synced_at_utc` column + GetUnsynced/MarkSynced** — additive
+   migration in [`SqliteLogStore`](src/Iskra.Core/SqliteLogStore.cs);
+   partial index on rows still pending; idempotent re-marking; legacy
+   Sprint-4-era DBs auto-migrate.
+2. ✅ **JSONL wire format** — [`FlashAttemptJsonl`](src/Iskra.Core/FlashAttemptJsonl.cs).
+   schema_version 1, snake_case fields matching the SQLite columns, nulls
+   explicit (never omitted), `power_mode` lowercase, `result` `PASS|FAIL`
+   uppercase — same on-wire encoding as the SQLite columns so the ingest
+   script can do direct INSERTs.
+3. ✅ **GitHub App installation token provider** —
+   [`GitHubAppInstallationTokenProvider`](src/Iskra.Core/GitHubAppAuth.cs).
+   Signs a 10 min RS256 JWT (BouncyCastle for PEM parsing → manual
+   RSAParameters mapping, no Windows-only interop), trades it for an
+   installation access token via `/app/installations/:id/access_tokens`,
+   caches until within 5 min of expiry. Distinct from Sprint 3's Device
+   Flow user-auth path.
+4. ✅ **`LogShipper`** — [`LogShipper`](src/Iskra.Core/LogShipper.cs).
+   Groups unsynced rows by `(station_id, UTC date)` → file path
+   `stations/<sanitized-station>/<YYYY-MM-DD>.jsonl`. Per group: GET
+   existing file (404 = create), append serialized batch to existing
+   content (preserving its blob sha), PUT new base64 content with commit
+   message `Iskra log: <station> <date> (+N)`. On success calls
+   `MarkSynced`. On API error throws `LogShipperException` leaving rows
+   unsynced for the next push.
+5. ✅ **Settings + constants** — `AppSettings.LogShippingEnabled` (default
+   true), `LogShipIntervalMinutes` (default 5),
+   `LogShipperPrivateKeyPath` (default `%PROGRAMDATA%\Iskra\station-app.pem`).
+   `GitHubAppConfig.LogShipperAppId` / `LogShipperInstallationId`
+   constants (empty until provisioned — see owner-action below).
+   `LogsRepoOwner`/`Name` hard-locked to `oleksandrmaslov/iskra-logs`
+   (Sprint 6 allowlist principle).
+6. ✅ **CLI `--ship-logs-now`** — one-shot flush from the configured
+   SQLite path, with optional `--key <pem>` / `--db-path` overrides.
+   Reports rows pushed / files created+updated / leftover; exit 5 with
+   Ukrainian message if the App isn't provisioned. Gracefully no-ops if
+   the DB doesn't exist yet or the queue is empty.
+7. ✅ **WPF cloud-sync UX** — new "Хмара: …" indicator on the status
+   strip showing `вимкнено` / `не налаштовано` / `✓ синхр.` /
+   `N в черзі` / `помилка`. New "Хмарний журнал (iskra-logs)" section
+   on the Settings tab: toggle, push interval, key-path picker,
+   read-only locked-repo label, and "Вивантажити зараз" button that
+   drives `ShipPendingAsync` and surfaces the report inline. Refreshes
+   on startup, after every flash attempt, after every manual sync.
+8. ✅ **iskra-logs workflow templates** —
+   [.github/workflows-templates/rebuild-logs-db.yml](.github/workflows-templates/rebuild-logs-db.yml)
+   + [build_logs_db.py](.github/workflows-templates/build_logs_db.py).
+   Walks `stations/<id>/*.jsonl`, rebuilds `logs.db` from scratch each
+   run via the Python ingest (PRIMARY KEY `(station_id, local_id)` makes
+   the ingest idempotent), commits if changed. Triggered by
+   `push` on `stations/**/*.jsonl`, nightly cron at 03:17 UTC, and
+   `workflow_dispatch`.
+
+Open Sprint 5 items are deployment-only, not code:
+
+- **Create the `oleksandrmaslov/iskra-logs` private repo.**
+- **Register a write-only GitHub App** (Contents: Read&write, Metadata: Read,
+  no webhook), install on iskra-logs only. Generate + download the .pem.
+  See the Sprint 5 section in
+  [.github/workflows-templates/README.md](.github/workflows-templates/README.md)
+  for the click-through.
+- **Bake App ID + Installation ID into the binary** — paste into
+  [`GitHubAppConfig.LogShipperAppId` / `LogShipperInstallationId`](src/Iskra.Core/GitHubAppConfig.cs)
+  and cut a new app release.
+- **Distribute the .pem to each station** at
+  `%PROGRAMDATA%\Iskra\station-app.pem` with tight ACLs (the MSI will
+  eventually do this; for now manual copy is fine).
+- **Drop the workflow + script into iskra-logs** and commit. First
+  smoke run should produce an empty `logs.db` if `stations/` is empty.
+- **First end-to-end run:** `Iskra.Cli --ship-logs-now` on a real
+  station and confirm a fresh `logs.db` appears in iskra-logs within
+  ~30 s.
+
 ### Beyond Sprint 3.5
 
 | Sprint | Deliverable |
 |---|---|
 | 2.5 | Sideload-from-folder (`--sideload-dir`) — synthesises a catalog from `<id>_v<ver>_<part>.elf` + sidecar files |
 | 2.6 | Per-product flasher overrides — optional `frequency_hz` / `power_mode` / `connect_reset` / `timeout_s` in catalog `target` block; override global Settings at flash time |
-| 5 | Cloud DB mirror — keep local SQLite writes (offline-safe), batch-push to a central DB (likely Postgres/Supabase) when network is up. Schema mirrors `flash_attempts` + adds `station_id` index |
+| ~~5~~ | ✅ Done in code (JSONL + GitHub App + LogShipper + WPF UX + iskra-logs workflow). Owner-actions outstanding: register App, install on iskra-logs, distribute .pem, drop workflow into iskra-logs |
 | ~~6~~ | ✅ Done in code (catalog allowlist, anti-rollback, revocation, security tests). Owner-actions outstanding: prod key rotation + GitHub repo settings |
 | 7 | Auto-pick product by board ID — needs firmware cooperation (write a board-ID byte to a known flash offset OR use chip UID + a per-product mapping table). Reads via `monitor read_mem`; matches against catalog before flashing |
 
