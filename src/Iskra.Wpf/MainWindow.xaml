@@ -16,9 +16,10 @@
         <!-- Status strip (always visible across tabs) -->
         <Border Grid.Row="0" Background="#2D2D30" Padding="14,8">
             <StackPanel Orientation="Horizontal">
-                <TextBlock x:Name="StatusPort"    Foreground="#DCDCDC" FontSize="13" Text="Порт: …" Margin="0,0,24,0" />
-                <TextBlock x:Name="StatusGdb"     Foreground="#DCDCDC" FontSize="13" Text="gdb: …"  Margin="0,0,24,0" />
-                <TextBlock x:Name="StatusCatalog" Foreground="#DCDCDC" FontSize="13" Text="Каталог: …" />
+                <TextBlock x:Name="StatusPort"    Foreground="#DCDCDC" FontSize="13" Text="Порт: …"     Margin="0,0,24,0" />
+                <TextBlock x:Name="StatusGdb"     Foreground="#DCDCDC" FontSize="13" Text="gdb: …"      Margin="0,0,24,0" />
+                <TextBlock x:Name="StatusCatalog" Foreground="#DCDCDC" FontSize="13" Text="Каталог: …"  Margin="0,0,24,0" />
+                <TextBlock x:Name="StatusCloud"   Foreground="#DCDCDC" FontSize="13" Text="Хмара: …" />
             </StackPanel>
         </Border>
 
@@ -420,6 +421,45 @@
                                 <ComboBoxItem Content="F2"         Tag="F2" />
                                 <ComboBoxItem Content="F5"         Tag="F5" />
                             </ComboBox>
+                        </Grid>
+
+                        <!-- Sprint 5: cloud log mirror -->
+                        <TextBlock Text="Хмарний журнал (iskra-logs)" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <CheckBox  Grid.Row="0" Grid.Column="1" x:Name="SettingsLogShippingEnabled" Margin="0,4,0,4"
+                                       Content="Авто-вивантажувати журнал у GitHub" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Інтервал (хв):" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBox   Grid.Row="1" Grid.Column="1" x:Name="SettingsLogShipInterval" Margin="0,4,8,4"
+                                       ToolTip="Як часто фонова черга підштовхує несинхронізовані рядки" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Приватний ключ (.pem):" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBox   Grid.Row="2" Grid.Column="1" x:Name="SettingsLogShipperKey" Margin="0,4,8,4"
+                                       ToolTip="Файл приватного ключа GitHub App (за замовчанням %PROGRAMDATA%\Iskra\station-app.pem)" />
+                            <Button    Grid.Row="2" Grid.Column="2" Content="..." Width="40" Margin="0,4,0,4" Click="PickLogKeyPath_Click" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Репозиторій:" VerticalAlignment="Center" Margin="0,4,8,4" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="SettingsLogsSourceLocked"
+                                       FontStyle="Italic" Foreground="#555" Margin="0,4,8,4" VerticalAlignment="Center" />
+
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="LogShipNowButton" Content="Вивантажити зараз"
+                                        Padding="14,6" Margin="0,0,8,0" Click="LogShipNow_Click" />
+                                <TextBlock x:Name="LogShipStatus" VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </StackPanel>
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

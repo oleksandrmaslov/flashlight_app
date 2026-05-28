@@ -49,6 +49,7 @@ public partial class MainWindow : Window
         RefreshHistory();
         RefreshAuthStatus();
         RefreshCatalogCacheStatus();
+        RefreshCloudSyncStatus();
 
         // Sprint 3.5: kick off a non-blocking background fetch of the remote
         // catalog. On success we cache to disk; user clicks "Перезавантажити"
@@ -391,6 +392,7 @@ public partial class MainWindow : Window
                 outcome.ErrorCode, outcome.ErrorMessage,
                 (long)outcome.Duration.TotalMilliseconds, outcome.GdbTail, outcome.DetectedTarget);
             RefreshHistory();
+            RefreshCloudSyncStatus();
         }
         catch (Exception ex)
         {
@@ -629,6 +631,12 @@ public partial class MainWindow : Window
         SettingsStationId.Text     = _settings.StationId;
         SelectHotkeyComboItem(_settings.FlashHotkey);
         RefreshFlashHotkeyHint();
+
+        // Sprint 5: log shipper settings.
+        SettingsLogShippingEnabled.IsChecked = _settings.LogShippingEnabled;
+        SettingsLogShipInterval.Text         = _settings.LogShipIntervalMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsLogShipperKey.Text           = _settings.LogShipperPrivateKeyPath;
+        SettingsLogsSourceLocked.Text        = $"{GitHubAppConfig.LogsRepoOwner}/{GitHubAppConfig.LogsRepoName} (read-only)";
     }
 
     private void SelectHotkeyComboItem(FlashHotkey hk)
@@ -739,6 +747,14 @@ public partial class MainWindow : Window
 
             _settings.FlashHotkey = ReadHotkeyComboSelection();
 
+            _settings.LogShippingEnabled = SettingsLogShippingEnabled.IsChecked == true;
+            if (!int.TryParse(SettingsLogShipInterval.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mins) || mins <= 0)
+                throw new FormatException("Інтервал вивантаження повинен бути додатнім цілим (хвилини).");
+            _settings.LogShipIntervalMinutes = mins;
+            _settings.LogShipperPrivateKeyPath = string.IsNullOrWhiteSpace(SettingsLogShipperKey.Text)
+                ? AppSettings.DefaultLogShipperPrivateKeyPath
+                : SettingsLogShipperKey.Text.Trim();
+
             AppSettingsStore.Save(_settings);
             RefreshFlashHotkeyHint();
 
@@ -746,6 +762,7 @@ public partial class MainWindow : Window
             DiscoverGdb();
             LoadCatalog();
             RefreshHistory();
+            RefreshCloudSyncStatus();
 
             SettingsStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x1B, 0x8A, 0x1B));
             SettingsStatus.Text = $"✓ Збережено о {DateTime.Now:HH:mm:ss}";
@@ -794,6 +811,120 @@ public partial class MainWindow : Window
             FileName = "flash_log.db",
         };
         if (dlg.ShowDialog() == true) SettingsDbPath.Text = dlg.FileName;
+    }
+
+    private void PickLogKeyPath_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Filter = "PEM private keys (*.pem)|*.pem|All files (*.*)|*.*",
+            Title  = "Виберіть приватний ключ GitHub App",
+        };
+        if (dlg.ShowDialog() == true) SettingsLogShipperKey.Text = dlg.FileName;
+    }
+
+    /// <summary>
+    /// Refreshes the cloud-sync status strip widget and the Settings-tab label
+    /// to reflect: (a) whether the log shipper is configured at all, (b) how
+    /// many rows are pending upload. Cheap — just opens the SQLite to count.
+    /// </summary>
+    private void RefreshCloudSyncStatus()
+    {
+        if (!_settings.LogShippingEnabled)
+        {
+            StatusCloud.Text = "Хмара: вимкнено";
+            LogShipStatus.Text = "Вивантаження вимкнено в налаштуваннях.";
+            return;
+        }
+        if (!GitHubAppConfig.IsLogShipperConfigured)
+        {
+            StatusCloud.Text = "Хмара: не налаштовано";
+            LogShipStatus.Text = "GitHub App ще не зареєстровано — зверніться до розробника.";
+            return;
+        }
+        try
+        {
+            var dbPath = ResolveDbPath();
+            if (!File.Exists(dbPath))
+            {
+                StatusCloud.Text = "Хмара: 0 в черзі";
+                LogShipStatus.Text = "Журнал порожній.";
+                return;
+            }
+            using var store = new SqliteLogStore(dbPath);
+            var pending = store.CountUnsynced();
+            StatusCloud.Text = pending == 0 ? "Хмара: ✓ синхр." : $"Хмара: {pending} в черзі";
+            LogShipStatus.Text = pending == 0
+                ? "✓ Усі рядки вивантажено."
+                : $"{pending} рядк(ів) очікують на вивантаження.";
+        }
+        catch (Exception ex)
+        {
+            StatusCloud.Text = "Хмара: помилка";
+            LogShipStatus.Text = $"✗ {ex.Message}";
+        }
+    }
+
+    private async void LogShipNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_settings.LogShippingEnabled)
+        {
+            LogShipStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+            LogShipStatus.Text = "Спочатку увімкніть авто-вивантаження.";
+            return;
+        }
+        if (!GitHubAppConfig.IsLogShipperConfigured)
+        {
+            LogShipStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            LogShipStatus.Text = "GitHub App не налаштовано — зверніться до розробника.";
+            return;
+        }
+
+        var keyPath = string.IsNullOrWhiteSpace(SettingsLogShipperKey.Text)
+            ? _settings.LogShipperPrivateKeyPath
+            : SettingsLogShipperKey.Text.Trim();
+        if (!File.Exists(keyPath))
+        {
+            LogShipStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            LogShipStatus.Text = $"✗ Ключ не знайдено: {keyPath}";
+            return;
+        }
+
+        LogShipNowButton.IsEnabled = false;
+        LogShipStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        LogShipStatus.Text = "Вивантаження…";
+        try
+        {
+            ShipReport report;
+            using (var store = new SqliteLogStore(ResolveDbPath()))
+            using (var http  = new System.Net.Http.HttpClient())
+            {
+                var tokens = new GitHubAppInstallationTokenProvider(
+                    http,
+                    GitHubAppConfig.LogShipperAppId,
+                    GitHubAppConfig.LogShipperInstallationId,
+                    () => GitHubAppInstallationTokenProvider.LoadPemKey(keyPath));
+                var shipper = new LogShipper(
+                    store, tokens, http,
+                    GitHubAppConfig.LogsRepoOwner,
+                    GitHubAppConfig.LogsRepoName);
+                report = await shipper.ShipPendingAsync();
+            }
+            LogShipStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x1B, 0x8A, 0x1B));
+            LogShipStatus.Text = $"✓ Вивантажено {report.RowsPushed} рядк(ів) "
+                + $"({report.FilesCreated} нових + {report.FilesUpdated} оновлено)"
+                + (report.RowsLeftover > 0 ? $", залишилось {report.RowsLeftover}." : ".");
+        }
+        catch (Exception ex)
+        {
+            LogShipStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+            LogShipStatus.Text = $"✗ {ex.Message}";
+        }
+        finally
+        {
+            LogShipNowButton.IsEnabled = true;
+            RefreshCloudSyncStatus();
+        }
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
