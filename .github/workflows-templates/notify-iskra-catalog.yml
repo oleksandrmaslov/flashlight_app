@@ -5,15 +5,14 @@
 #
 # Required secret in this firmware repo:
 #   ISKRA_CATALOG_DISPATCH_TOKEN   GitHub fine-grained PAT with
-#                                  "Contents: read" on this firmware repo and
-#                                  "Metadata: read" + "Actions: write"
-#                                  on oleksandrmaslov/iskra-catalog.
+#                                  access to oleksandrmaslov/iskra-catalog and
+#                                  "Contents: read and write" permission.
 #
 # To create the PAT:
 #   https://github.com/settings/personal-access-tokens/new
 #   Resource owner:  oleksandrmaslov
 #   Repository access: only-select-repos → iskra-catalog
-#   Permissions: Repository → Actions: Read and write
+#   Permissions: Repository → Contents: Read and write
 #   Expiry: 1 year (set a calendar reminder)
 #
 # After creating, paste the value into each firmware repo at:

@@ -38,6 +38,21 @@ Copy-Item .github\workflows-templates\regenerate-catalog.yml `
 
 Commit + push to `iskra-catalog`. Test the workflow with **Actions tab → Run workflow** (the `workflow_dispatch` trigger is there for exactly this purpose).
 
+If firmware repos are private, add one more secret to `iskra-catalog` before
+the test run. Create a fine-grained PAT with:
+
+- **Repository access:** every private `*-firmware` repo to include, starting with `ci-clop-firmware`
+- **Repository permissions → Contents:** Read-only
+- **Expiry:** 1 year
+
+Store it in `iskra-catalog`:
+
+```powershell
+$token = Read-Host -AsSecureString "Paste read-only firmware PAT"
+$plain = [System.Net.NetworkCredential]::new("", $token).Password
+gh secret set ISKRA_BOT_TOKEN --repo oleksandrmaslov/iskra-catalog --body $plain
+```
+
 ### 4. Wire the firmware repos to notify the catalog
 
 For each `*-firmware` repo (starting with `ci-clop-firmware`):
@@ -50,7 +65,7 @@ Copy-Item .github\workflows-templates\notify-iskra-catalog.yml `
 Create a fine-grained PAT (https://github.com/settings/personal-access-tokens/new) with:
 - **Resource owner:** `oleksandrmaslov`
 - **Repository access:** `iskra-catalog` only
-- **Repository permissions → Actions:** Read and write
+- **Repository permissions → Contents:** Read and write
 - **Expiry:** 1 year
 
 Store as `ISKRA_CATALOG_DISPATCH_TOKEN` secret in the firmware repo:

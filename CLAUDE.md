@@ -267,6 +267,58 @@ Open Sprint 3.5 items are deployment-only, not code:
 - **First end-to-end run:** cut a real release in `ci-clop-firmware` and
   watch iskra-catalog Actions regenerate the signed catalog within ~30 s.
 
+### Sprint 6 — planned: production release governance + anti-tamper hardening
+
+Current code already has the core trust boundary: Ed25519-signed catalogs,
+embedded public key verification, SHA-256 firmware checks, GitHub release
+downloads, and cache re-hashing. The remaining risk is production governance:
+today WPF settings still expose editable `CatalogOwner` / `CatalogRepo`
+fields for development convenience. In production, stations must not trust an
+operator-entered GitHub username/repo, and they must not require Oleksandr to
+sign in to his personal GitHub account on each factory PC.
+
+Planned Sprint 6 deliverables:
+
+1. **Production catalog lock / allowlist** — add a production-mode policy that
+   accepts only the official catalog source, initially
+   `oleksandrmaslov/iskra-catalog`. The WPF owner/repo text fields stay
+   available only in dev/lab mode; release builds either hide or disable them.
+   `RemoteCatalogClient` should reject non-allowlisted catalog sources before
+   any network request.
+2. **Production signing-key custody** — rotate from the dev key to a
+   production Ed25519 keypair. Embed only the production public key in the
+   release app. Keep the private key outside this repo and outside normal
+   factory PCs: preferred storage is offline media, HSM, or a tightly
+   controlled vault. GitHub Actions may build draft catalogs, but only
+   Oleksandr or a protected approval environment can produce the production
+   signature.
+3. **No maintainer GitHub login on stations** — factory PCs must not use
+   Oleksandr's personal GitHub login or PAT. Preferred deployment is public
+   read-only catalog/firmware assets with trust enforced by signature +
+   SHA-256. If private assets are required, use a read-only GitHub App,
+   machine/service account, or backend download proxy — never the maintainer's
+   personal credentials.
+4. **Anti-rollback catalog policy** — extend the catalog/cache metadata with a
+   monotonic catalog sequence or signed `published_at`/epoch field. Store the
+   newest accepted value locally and reject older signed catalogs by default.
+   Provide a deliberate engineering override for lab recovery only.
+5. **Release revocation** — add a signed `revoked_releases` /
+   `disabled_releases` section to the catalog so a bad firmware version can be
+   blocked even if it was previously signed and cached.
+6. **GitHub repository governance** — protect `main` on app, catalog, and
+   firmware repos: no force-push, required PR, required status checks, signed
+   commits/tags where practical, CODEOWNERS with Oleksandr as required owner,
+   GitHub Actions minimum permissions, and protected environments/manual
+   approval for signing or publishing production catalog releases.
+7. **Security tests** — add tests for wrong catalog repo, unsigned catalog,
+   bad signature, hash mismatch, rollback attempt, revoked release, tampered
+   cache file, and production-mode owner/repo override attempts.
+8. **Operational recovery** — document key rotation and incident response:
+   if GitHub is compromised, re-publish a clean signed catalog; if the signing
+   key is compromised, rotate the embedded public key and ship a new app
+   version. A compromised GitHub release alone must not be enough to make a
+   station flash bad firmware.
+
 ### Beyond Sprint 3.5
 
 | Sprint | Deliverable |
@@ -274,7 +326,8 @@ Open Sprint 3.5 items are deployment-only, not code:
 | 2.5 | Sideload-from-folder (`--sideload-dir`) — synthesises a catalog from `<id>_v<ver>_<part>.elf` + sidecar files |
 | 2.6 | Per-product flasher overrides — optional `frequency_hz` / `power_mode` / `connect_reset` / `timeout_s` in catalog `target` block; override global Settings at flash time |
 | 5 | Cloud DB mirror — keep local SQLite writes (offline-safe), batch-push to a central DB (likely Postgres/Supabase) when network is up. Schema mirrors `flash_attempts` + adds `station_id` index |
-| 6 | Auto-pick product by board ID — needs firmware cooperation (write a board-ID byte to a known flash offset OR use chip UID + a per-product mapping table). Reads via `monitor read_mem`; matches against catalog before flashing |
+| 6 | Production release governance + anti-tamper hardening — lock catalog source, protect signing keys, no maintainer GitHub login on stations, anti-rollback, release revocation, repo protections |
+| 7 | Auto-pick product by board ID — needs firmware cooperation (write a board-ID byte to a known flash offset OR use chip UID + a per-product mapping table). Reads via `monitor read_mem`; matches against catalog before flashing |
 
 ### Polish backlog (fold in opportunistically)
 
@@ -325,9 +378,15 @@ Open Sprint 3.5 items are deployment-only, not code:
   the *acceptance test* for Sprint 1, NOT a hardcoded assumption in code.
 - **Operator identity:** free-text dropdown at app start, stored per-station.
 - **Trust root:** signed `catalog.json` (Ed25519, public key embedded in
-  exe). Firmware integrity = SHA-256 from the signed catalog.
+  exe). Firmware integrity = SHA-256 from the signed catalog. GitHub owner,
+  repo name, release tag, and asset name are metadata, not trust roots.
+  Production builds should lock/allowlist the catalog source and rely on the
+  embedded public key to decide what can be flashed.
 - **GitHub auth:** GitHub App + Device Flow. Refresh token in Windows DPAPI,
-  `LocalMachine` scope. No PATs.
+  `LocalMachine` scope. No PATs. Factory stations must not use Oleksandr's
+  personal GitHub login; prefer public read-only release assets plus catalog
+  signature/SHA-256, or a read-only GitHub App/service path if private access
+  is required.
 - **Logging:** SQLite per station; CSV export per batch.
 - **Production safety:** batches lock the firmware version. The app NEVER
   auto-updates firmware silently during a batch.
@@ -482,9 +541,11 @@ catalog generator and the app can verify firmware ↔ hardware pairing:
 If you change the firmware build artefact, rename releases, or omit
 `target.json`, the catalog parser here breaks. Coordinate before renaming.
 
-A separate `firmware-catalog` repo (TBD) will hold the signed `catalog.json`
-asset (an aggregation of per-product `target.json` files) and is the single
-source of truth for what operators can flash.
+The production catalog repo is planned as `oleksandrmaslov/iskra-catalog`.
+It holds the signed `catalog.json` asset (an aggregation of per-product
+`target.json` files) and is the single source of truth for what operators can
+flash. Production trust still comes from the Ed25519 signature, not from the
+repo name alone.
 
 ---
 
