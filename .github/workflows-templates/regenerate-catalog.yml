@@ -18,9 +18,8 @@
 # Also recommended:
 #   ISKRA_BOT_TOKEN    A GitHub PAT (or use the default GITHUB_TOKEN if all
 #                      firmware repos are public). Used to list & download
-#                      target.json from each firmware repo. Required when
-#                      firmware repos are private. Defaults to GITHUB_TOKEN
-#                      for public repos.
+#                      target.json from each firmware repo. Defaults to
+#                      GITHUB_TOKEN which has cross-repo read on public repos.
 
 name: regenerate catalog
 
@@ -35,7 +34,6 @@ permissions:
 env:
   OWNER: oleksandrmaslov
   ISKRA_APP_REF: main        # branch/tag of iskra-app to use the generator from
-  FIRMWARE_REPOS: ci-clop-firmware
 
 jobs:
   rebuild:
@@ -45,10 +43,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout iskra-app (for Iskra.Cli source)
-        run: |
-          set -euo pipefail
-          git clone --depth 1 --branch "$ISKRA_APP_REF" \
-            https://github.com/oleksandrmaslov/iskra.git iskra-app
+        uses: actions/checkout@v4
+        with:
+          repository: oleksandrmaslov/iskra
+          ref: ${{ env.ISKRA_APP_REF }}
+          path: iskra-app
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -61,42 +60,21 @@ jobs:
       - name: List *-firmware repos under ${{ env.OWNER }}
         id: list_repos
         env:
-          ISKRA_BOT_TOKEN: ${{ secrets.ISKRA_BOT_TOKEN }}
-          FALLBACK_GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ISKRA_BOT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          export GH_TOKEN="$(printf '%s' "${ISKRA_BOT_TOKEN:-$FALLBACK_GITHUB_TOKEN}" | tr -cd 'A-Za-z0-9_')"
-          case "$GH_TOKEN" in
-            github_pat_*|ghp_*|gho_*|ghs_*|ghu_*) ;;
-            *) echo "::error::ISKRA_BOT_TOKEN is not a valid GitHub token value. Paste only the token itself, for example github_pat_..." >&2; exit 2 ;;
-          esac
-
-          if [ -n "${FIRMWARE_REPOS:-}" ]; then
-            printf '%s\n' $FIRMWARE_REPOS > repos.txt
-          else
-            gh repo list "$OWNER" --limit 200 \
-                --json name,isArchived,visibility \
-                --jq '.[] | select(.isArchived == false) | select(.name | endswith("-firmware")) | .name' \
-                > repos.txt
-          fi
+          gh repo list "$OWNER" --limit 200 \
+              --json name,isArchived,visibility \
+              --jq '.[] | select(.isArchived == false) | select(.name | endswith("-firmware")) | .name' \
+              > repos.txt
           echo "Found $(wc -l < repos.txt) firmware repo(s):"
           cat repos.txt
-          if [ ! -s repos.txt ]; then
-            echo "::error::No *-firmware repos visible. If firmware repos are private, set ISKRA_BOT_TOKEN in iskra-catalog with read access to those repos." >&2
-            exit 2
-          fi
 
       - name: Pull target.json from each firmware repo's latest release
         env:
-          ISKRA_BOT_TOKEN: ${{ secrets.ISKRA_BOT_TOKEN }}
-          FALLBACK_GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ISKRA_BOT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          export GH_TOKEN="$(printf '%s' "${ISKRA_BOT_TOKEN:-$FALLBACK_GITHUB_TOKEN}" | tr -cd 'A-Za-z0-9_')"
-          case "$GH_TOKEN" in
-            github_pat_*|ghp_*|gho_*|ghs_*|ghu_*) ;;
-            *) echo "::error::ISKRA_BOT_TOKEN is not a valid GitHub token value. Paste only the token itself, for example github_pat_..." >&2; exit 2 ;;
-          esac
           mkdir -p targets
           while IFS= read -r repo; do
             [ -z "$repo" ] && continue
@@ -118,10 +96,6 @@ jobs:
           done < repos.txt
           echo "Staged target.json files:"
           find targets -name target.json -print
-          if ! find targets -name target.json -print -quit | grep -q .; then
-            echo "::error::No target.json files found. Check firmware releases and token access to private firmware repos." >&2
-            exit 2
-          fi
 
       - name: Generate catalog.json
         run: |
